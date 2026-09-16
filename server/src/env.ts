@@ -29,7 +29,7 @@ export const env = {
     'postgresql://idu:idu@localhost:5432/idu'
   ),
 
-  port: Number(process.env.PORT ?? 4000),
+  port: Number(process.env.PORT ?? 6000),
 
   clientOrigins: parseOrigins(
     process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
