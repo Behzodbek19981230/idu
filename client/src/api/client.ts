@@ -11,6 +11,17 @@ import type {
 
 const TOKEN_KEY = 'idu_admin_token';
 
+/**
+ * API manzili .env dagi VITE_API_URL dan olinadi (server origini, `/api` siz).
+ * Ko'rsatilmasa — nisbiy `/api`: dev rejimida Vite proxy localhost:4000 ga uzatadi,
+ * front va backend bitta domenda tursa ham shu variant ishlaydi.
+ */
+const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
+
+export function apiUrl(path: string): string {
+  return `${API_BASE}/api${path}`;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -22,7 +33,7 @@ export function setToken(token: string | null) {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
       'Content-Type': 'application/json',

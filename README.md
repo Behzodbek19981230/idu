@@ -60,6 +60,21 @@ ADMIN_PASSWORD=admin123
 
 > Ishlab chiqarishga chiqarishdan oldin `JWT_SECRET` va `ADMIN_PASSWORD` ni albatta o'zgartiring.
 
+### 2.1. Frontend sozlamasi
+
+`client/.env.example` → `client/.env` (yoki mavjud `client/.env.production`):
+
+```
+VITE_API_URL=https://api.idu.universal-uz.uz
+```
+
+- Qiymat — **server origini**, oxirida `/api` yozilmaydi (kod o'zi qo'shadi).
+- Bo'sh qoldirilsa nisbiy `/api` ishlatiladi: dev rejimida `vite.config.ts` dagi proxy
+  `http://localhost:4000` ga uzatadi; front va backend bitta domenda tursa ham shu variant ishlaydi.
+- `npm run dev` — `.env.development`/`.env` ni, `npm run build` — `.env.production` ni oladi.
+  Ya'ni lokal ishlash prod API ga tegmaydi.
+- Backend tomonda `CLIENT_ORIGIN` ga frontend domenini qo'shishni unutmang, aks holda CORS bloklaydi.
+
 ### 3. O'rnatish va ishga tushirish
 
 ```bash
