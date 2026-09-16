@@ -10,7 +10,7 @@ import { pool } from './db/pool.js';
 
 const app = express();
 
-app.use(cors({ origin: env.clientOrigin.split(',').map((o) => o.trim()) }));
+app.use(cors({ origin: env.clientOrigins === '*' ? true : env.clientOrigins }));
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', async (_req, res) => {
@@ -33,4 +33,7 @@ app.use(errorHandler);
 
 app.listen(env.port, () => {
   console.log(`→ API ishga tushdi: http://localhost:${env.port}/api`);
+  console.log(
+    `  CORS ruxsat: ${env.clientOrigins === '*' ? 'barcha domenlar' : env.clientOrigins.join(', ')}`,
+  );
 });

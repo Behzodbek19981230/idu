@@ -10,6 +10,19 @@ function required(name: string, fallback?: string): string {
   return value;
 }
 
+/**
+ * CORS uchun ruxsat etilgan domenlar. Vergul bilan ajratiladi, oxiridagi `/` kesiladi
+ * (brauzer Origin sarlavhasini hech qachon `/` bilan yubormaydi — eng ko'p uchraydigan xato).
+ * `*` yozilsa — barcha domenlarga ruxsat.
+ */
+function parseOrigins(raw: string): string[] | '*' {
+  const list = raw
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  return list.includes('*') ? '*' : list;
+}
+
 export const env = {
   databaseUrl: required(
     'DATABASE_URL',
@@ -18,8 +31,9 @@ export const env = {
 
   port: Number(process.env.PORT ?? 4000),
 
-  clientOrigin:
+  clientOrigins: parseOrigins(
     process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+  ),
 
   jwtSecret: required(
     'JWT_SECRET',
