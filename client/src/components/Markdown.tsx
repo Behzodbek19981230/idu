@@ -14,6 +14,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import MermaidDiagram from './MermaidDiagram';
 
 /** Markdown matnini MUI komponentlari bilan ko'rsatadi (light/dark rejimga moslashadi) */
 export default function Markdown({ children }: { children: string }) {
@@ -106,6 +107,9 @@ export default function Markdown({ children }: { children: string }) {
                   {children}
                 </Box>
               );
+            }
+            if (className === 'language-mermaid') {
+              return <MermaidDiagram code={String(children).replace(/\n$/, '')} />;
             }
             return (
               <Paper
