@@ -1,13 +1,15 @@
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { Alert, Button, Link, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import AuthShell from '../components/AuthShell';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  // Sessiya tugagani uchun yo'naltirilgan bo'lsa — kirgach o'sha sahifaga qaytamiz
+  const from = (useLocation().state as { from?: string } | null)?.from;
   const [form, setForm] = useState({ login: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,7 +20,7 @@ export default function LoginPage() {
     setError('');
     try {
       const user = await login(form.login, form.password);
-      navigate(user.role === 'admin' ? '/admin' : '/', { replace: true });
+      navigate(from ?? (user.role === 'admin' ? '/admin' : '/'), { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {

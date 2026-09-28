@@ -21,7 +21,7 @@ import type {
   TopicListItem,
 } from '../types';
 
-const TOKEN_KEY = 'idu_admin_token';
+export const TOKEN_KEY = 'idu_admin_token';
 
 /** 401 kelganda AuthContext foydalanuvchini chiqarib yuborishi uchun */
 export const UNAUTHORIZED_EVENT = 'idu:unauthorized';
@@ -46,6 +46,26 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
+/** JWT muddati tugaganmi (imzo tekshirilmaydi — faqat `exp`, server baribir tekshiradi) */
+export function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
+/** Kirish/ro'yxatdan o'tishda 401 — "login yoki parol xato", sessiya bilan bog'liq emas */
+const AUTH_FORM_PATHS = ['/auth/login', '/auth/register'];
+
+/** 401: token yo'q, muddati o'tgan yoki foydalanuvchi o'chirilgan — sessiyani tozalab, login sahifasiga */
+function handleUnauthorized(path: string, status: number) {
+  if (status !== 401 || AUTH_FORM_PATHS.includes(path)) return;
+  setToken(null);
+  window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const isForm = options.body instanceof FormData;
@@ -59,10 +79,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   });
 
-  if (res.status === 401 && token) {
-    setToken(null);
-    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
-  }
+  handleUnauthorized(path, res.status);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: `Xato ${res.status}` }));
     throw new Error(body.error ?? `Xato ${res.status}`);
@@ -77,6 +94,7 @@ async function downloadFile(path: string, fileName: string) {
   const res = await fetch(apiUrl(path), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
+  handleUnauthorized(path, res.status);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: `Xato ${res.status}` }));
     throw new Error(body.error ?? `Xato ${res.status}`);

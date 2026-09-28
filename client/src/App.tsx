@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import { useAuth } from './context/AuthContext';
 import AdminJournalPage from './pages/AdminJournalPage';
@@ -17,16 +17,22 @@ import SharePage from './pages/SharePage';
 import StudentTopicPage from './pages/StudentTopicPage';
 import SubjectPage from './pages/SubjectPage';
 
+/** Login sahifasiga yo'naltirish; kirgach shu sahifaga qaytiladi */
+function ToLogin() {
+  const location = useLocation();
+  return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+}
+
 function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { user, isAdmin } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <ToLogin />;
   return isAdmin ? <>{children}</> : <Navigate to="/" replace />;
 }
 
 /** Fanlar va mavzular faqat tizimga kirgan admin/talaba uchun */
 function RequireUser({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
+  return user ? <>{children}</> : <ToLogin />;
 }
 
 /** Mavzu: admin — to'liq dars qo'llanmasi, talaba — faqat topshiriq yuborish */
@@ -38,8 +44,9 @@ function TopicRoute() {
 /** Kirgan foydalanuvchi login/register sahifasini ochsa — o'z bosh sahifasiga */
 function GuestOnly({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const from = (useLocation().state as { from?: string } | null)?.from;
   if (!user) return <>{children}</>;
-  return <Navigate to={user.role === 'admin' ? '/admin' : '/'} replace />;
+  return <Navigate to={from ?? (user.role === 'admin' ? '/admin' : '/')} replace />;
 }
 
 export default function App() {

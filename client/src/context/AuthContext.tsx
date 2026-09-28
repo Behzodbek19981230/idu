@@ -7,13 +7,19 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, getToken, setToken, UNAUTHORIZED_EVENT } from '../api/client';
+import { api, getToken, isTokenExpired, setToken, TOKEN_KEY, UNAUTHORIZED_EVENT } from '../api/client';
 import type { AuthUser, RegisterInput } from '../types';
 
 const USER_KEY = 'idu_user';
 
 function readStoredUser(): AuthUser | null {
-  if (!getToken()) return null;
+  const token = getToken();
+  if (!token || isTokenExpired(token)) {
+    // Muddati o'tgan sessiya — sahifa ochilishi bilan login sahifasiga
+    setToken(null);
+    localStorage.removeItem(USER_KEY);
+    return null;
+  }
   try {
     return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null') as AuthUser | null;
   } catch {
@@ -61,8 +67,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onUnauthorized = () => applySession(null, null);
+    // Boshqa oynada chiqib ketilsa (token o'chirilsa) — bu oynada ham
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === TOKEN_KEY && !e.newValue) applySession(null, null);
+    };
+    // Token muddati sahifa ochiq turganda tugasa — keyingi harakatda emas, darhol
+    const onFocus = () => {
+      const token = getToken();
+      if (token && isTokenExpired(token)) applySession(null, null);
+    };
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
-    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [applySession]);
 
   const login = useCallback(
