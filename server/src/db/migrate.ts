@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 async function migrate() {
   const sql = await readFile(join(here, 'schema.sql'), 'utf8');
   await pool.query(sql);
-  console.log('✓ Migratsiya bajarildi: subjects, topics, shares');
+  console.log('✓ Migratsiya bajarildi: subjects, topics, shares, students, subject_courses, class_sessions, attendance, submissions');
   await pool.end();
 }
 

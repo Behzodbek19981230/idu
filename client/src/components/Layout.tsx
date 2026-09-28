@@ -7,6 +7,7 @@ import {
   AppBar,
   Box,
   Button,
+  Chip,
   Drawer,
   IconButton,
   Stack,
@@ -21,6 +22,7 @@ import { useState } from 'react';
 import { Link as RouterLink, matchPath, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useColorMode } from '../context/ColorModeContext';
+import NotificationBell from './NotificationBell';
 import Sidebar from './Sidebar';
 
 const DRAWER_WIDTH = 300;
@@ -45,7 +47,7 @@ export default function Layout() {
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const { subjectId, topicId } = useCurrentIds();
-  const { isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const { mode, toggle } = useColorMode();
   const navigate = useNavigate();
 
@@ -108,30 +110,46 @@ export default function Layout() {
               </IconButton>
             </Tooltip>
 
-            {/* Adminka tugmasi faqat tizimga kirgan admin uchun ko'rinadi.
-                Mehmon /admin manzilini o'zi yozsa — login sahifasiga yo'naltiriladi. */}
+            {/* Adminka tugmasi faqat admin uchun; talaba /admin ni ochsa — bosh sahifaga qaytadi */}
+            {isAdmin && <NotificationBell />}
+
             {isAdmin && (
-              <>
-                <Button
-                  size="small"
-                  startIcon={<SettingsOutlinedIcon />}
-                  component={RouterLink}
-                  to="/admin"
+              <Button
+                size="small"
+                startIcon={<SettingsOutlinedIcon />}
+                component={RouterLink}
+                to="/admin"
+              >
+                Adminka
+              </Button>
+            )}
+
+            {user?.role === 'student' && (
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ pl: 0.5 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  noWrap
+                  sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: 220 }}
                 >
-                  Adminka
-                </Button>
-                <Tooltip title="Chiqish">
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      logout();
-                      navigate('/');
-                    }}
-                  >
-                    <LogoutIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </>
+                  {user.first_name} {user.last_name}
+                </Typography>
+                <Chip label={`${user.course}-kurs`} size="small" color="primary" variant="outlined" />
+              </Stack>
+            )}
+
+            {user && (
+              <Tooltip title="Chiqish">
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    logout();
+                    navigate('/login');
+                  }}
+                >
+                  <LogoutIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             )}
           </Stack>
         </Toolbar>

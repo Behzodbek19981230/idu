@@ -84,7 +84,7 @@ npm run db:seed         # namuna fan va 5 ta dars qo'llanmasi
 npm run dev             # server :4000, client :5173
 ```
 
-Brauzer: <http://localhost:5173> · Adminka: <http://localhost:5173/admin/login> (`admin` / `admin123`)
+Brauzer: <http://localhost:5173> · Kirish: <http://localhost:5173/login> (admin: `admin` / `admin123`; talabalar `/register` orqali ro'yxatdan o'tadi)
 
 ## Foydalanish
 
@@ -134,20 +134,36 @@ o'chadi.
 | Metod | Manzil | Kirish |
 |---|---|---|
 | GET | `/api/health` | ochiq |
-| POST | `/api/auth/login` | ochiq |
-| GET | `/api/subjects` | ochiq |
-| GET | `/api/subjects/:id` | ochiq (mavzular bilan) |
-| POST/PUT/DELETE | `/api/subjects[/:id]` | admin |
-| GET | `/api/topics?subject_id=1` | ochiq |
-| GET | `/api/topics/:id` | ochiq (to'liq qo'llanma) |
+| POST | `/api/auth/register` | ochiq — talaba: `first_name, last_name, course (1–4), login, password` |
+| POST | `/api/auth/login` | ochiq — admin (.env) yoki talaba |
+| GET | `/api/auth/me` | admin/talaba |
+| GET | `/api/subjects` | admin — barchasi; talaba — faqat o'z kursidagi fanlar |
+| GET | `/api/subjects/:id` | admin/talaba (mavzular bilan; talaba faqat o'z kursidagi fanni) |
+| POST/PUT/DELETE | `/api/subjects[/:id]` | admin; body'da `courses: [1, 3]` — fan biriktirilgan kurslar |
+| GET | `/api/topics?subject_id=1` | admin/talaba |
+| GET | `/api/topics/:id` | admin (to'liq qo'llanma; talaba dars matnini ko'rmaydi) |
 | POST/PUT/DELETE | `/api/topics[/:id]` | admin |
 | PUT | `/api/topics/reorder/:subjectId` | admin, `{ ids: [...] }` |
+| GET | `/api/students` | admin — talabalar ro'yxati |
+| PATCH/DELETE | `/api/students/:id` | admin — kursni o'zgartirish `{ course }` / o'chirish |
+| GET | `/api/journal/:subjectId?course=2` | admin — jurnal: talabalar, darslar, davomat va ballar |
+| POST | `/api/journal/:subjectId/sessions` | admin — dars qo'shish `{ course, lesson_date, topic_id?, note? }` |
+| PUT/DELETE | `/api/journal/sessions/:id` | admin — darsni tahrirlash / o'chirish |
+| PUT | `/api/journal/sessions/:id/marks` | admin — `{ marks: [{ student_id, present, score }] }`, ball — istalgan manfiy bo'lmagan son (2 kasr xonagacha); NB bo'lsa ball 0 |
+| GET | `/api/submissions/topic/:topicId` | talaba — mavzu nomi, topshiriq sharti va o'z topshiriqlari |
+| POST | `/api/submissions/topic/:topicId` | talaba — multipart: `content_kind` (text/code), `content`, `file` |
+| GET | `/api/submissions/:id/file` | admin yoki topshiriq egasi — faylni yuklab olish |
+| GET | `/api/submissions/notifications` | admin — yangi (ochilmagan) topshiriqlar soni va ro'yxati |
+| POST | `/api/submissions/notifications/read-all` | admin — hammasini ko'rilgan deb belgilash |
+| GET | `/api/submissions?status=submitted&subject_id=1` | admin — topshiriqlar ro'yxati |
+| GET | `/api/submissions/:id` | admin — topshiriq (ochilganda "ko'rildi" bo'ladi) |
+| PATCH | `/api/submissions/:id/grade` | admin — `{ score, feedback }` |
 | GET/POST | `/api/shares` | admin — havolalar ro'yxati / yaratish |
 | PATCH/DELETE | `/api/shares/:id` | admin — yoqish-o'chirish / o'chirish |
 | GET | `/api/share/:token` | **ochiq** — faqat ulashilgan fan yoki mavzu |
 | GET | `/api/share/:token/topic/:id` | **ochiq** — faqat ulashilgan fan ichidagi mavzu |
 
-Admin so'rovlari `Authorization: Bearer <token>` sarlavhasini talab qiladi (JWT, 12 soat).
+Himoyalangan so'rovlar `Authorization: Bearer <token>` sarlavhasini talab qiladi (JWT, 12 soat).
 
 `/api/share/...` uchun token kerak emas, lekin server har so'rovda havola faolligini,
 muddatini va so'ralgan mavzu shu havolaga tegishli ekanini tekshiradi — mavzu havolasi

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { many, one, pool, query } from '../db/pool.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { assertSubjectAccess, courseFilter, requireAdmin, requireUser } from '../middleware/auth.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import type { Topic } from '../types.js';
 
@@ -24,11 +24,14 @@ const topicSchema = z.object({
   position: z.coerce.number().int().min(0).optional(),
 });
 
-/** ?subject_id=1 bilan filtrlanadi; content qaytarilmaydi (ro'yxat yengil bo'lishi uchun) */
+/** ?subject_id=1 bilan filtrlanadi; content qaytarilmaydi (ro'yxat yengil bo'lishi uchun).
+ *  Talabaga faqat o'z kursidagi fanlar mavzulari qaytariladi. */
 topicsRouter.get(
   '/',
+  requireUser,
   asyncHandler(async (req, res) => {
     const subjectId = req.query.subject_id ? Number(req.query.subject_id) : null;
+    if (subjectId) await assertSubjectAccess(req.user!, subjectId);
     const rows = subjectId
       ? await many<Topic>(
           `SELECT id, subject_id, title, week, position, lesson_type, hours, summary, keywords
@@ -37,17 +40,23 @@ topicsRouter.get(
         )
       : await many<Topic>(
           `SELECT id, subject_id, title, week, position, lesson_type, hours, summary, keywords
-             FROM topics ORDER BY subject_id, position, id`,
+             FROM topics t
+            WHERE $1::int IS NULL
+               OR EXISTS (SELECT 1 FROM subject_courses sc WHERE sc.subject_id = t.subject_id AND sc.course = $1)
+            ORDER BY subject_id, position, id`,
+          [courseFilter(req.user)],
         );
     res.json(rows);
   }),
 );
 
-/** To'liq dars qo'llanmasi */
+/** To'liq dars qo'llanmasi — faqat admin. Talaba mavzu bo'yicha faqat topshiriq yuboradi
+ *  (/api/submissions/topic/:id), dars matnini ko'rmaydi. */
 topicsRouter.get(
   '/:id',
+  requireAdmin,
   asyncHandler(async (req, res) => {
-    const row = await one(
+    const row = await one<Topic>(
       `SELECT t.*, s.name AS subject_name, s.code AS subject_code
          FROM topics t JOIN subjects s ON s.id = t.subject_id
         WHERE t.id = $1`,

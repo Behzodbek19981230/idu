@@ -1,7 +1,8 @@
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import { Alert, Avatar, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, Link, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import AuthShell from '../components/AuthShell';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -16,8 +17,8 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login(form.login, form.password);
-      navigate('/admin');
+      const user = await login(form.login, form.password);
+      navigate(user.role === 'admin' ? '/admin' : '/', { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -26,48 +27,54 @@ export default function LoginPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 400, mx: 'auto', mt: { xs: 2, md: 6 } }}>
-      <Paper variant="outlined" sx={{ p: { xs: 3, md: 4 } }}>
-        <Stack alignItems="center" spacing={1} sx={{ mb: 3 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>
-            <LockOutlinedIcon />
-          </Avatar>
-          <Typography variant="h6">Adminka kirish</Typography>
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            Fanlar va dars qo'llanmalarini tahrirlash uchun tizimga kiring
-          </Typography>
+    <AuthShell
+      icon={<LockOutlinedIcon />}
+      title="Tizimga kirish"
+      subtitle="Fanlar va dars qo'llanmalarini ko'rish uchun login va parolingizni kiriting"
+    >
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      <form onSubmit={submit}>
+        <Stack spacing={2}>
+          <TextField
+            label="Login"
+            size="small"
+            fullWidth
+            autoFocus
+            autoComplete="username"
+            value={form.login}
+            onChange={(e) => setForm({ ...form, login: e.target.value })}
+          />
+          <TextField
+            label="Parol"
+            type="password"
+            size="small"
+            fullWidth
+            autoComplete="current-password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            disabled={loading || !form.login || !form.password}
+          >
+            {loading ? 'Tekshirilmoqda…' : 'Kirish'}
+          </Button>
         </Stack>
+      </form>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <form onSubmit={submit}>
-          <Stack spacing={2}>
-            <TextField
-              label="Login"
-              size="small"
-              fullWidth
-              autoFocus
-              value={form.login}
-              onChange={(e) => setForm({ ...form, login: e.target.value })}
-            />
-            <TextField
-              label="Parol"
-              type="password"
-              size="small"
-              fullWidth
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-            <Button type="submit" variant="contained" size="large" disabled={loading}>
-              {loading ? 'Tekshirilmoqda…' : 'Kirish'}
-            </Button>
-          </Stack>
-        </form>
-      </Paper>
-    </Box>
+      <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mt: 2.5 }}>
+        Hisobingiz yo'qmi?{' '}
+        <Link component={RouterLink} to="/register">
+          Ro'yxatdan o'tish
+        </Link>
+      </Typography>
+    </AuthShell>
   );
 }

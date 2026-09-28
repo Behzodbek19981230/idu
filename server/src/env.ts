@@ -43,4 +43,10 @@ export const env = {
   adminLogin: process.env.ADMIN_LOGIN ?? 'admin',
 
   adminPassword: process.env.ADMIN_PASSWORD ?? 'admin123',
+
+  /** Talabalar yuborgan fayllar saqlanadigan papka */
+  uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
+
+  /** Bitta topshiriq faylining maksimal hajmi, MB */
+  maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 20),
 };

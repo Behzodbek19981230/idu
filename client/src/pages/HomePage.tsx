@@ -17,10 +17,13 @@ import { alpha } from '@mui/material/styles';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import type { Subject } from '../types';
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const course = user?.role === 'student' ? user.course : null;
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,9 +55,10 @@ export default function HomePage() {
         })}
       >
         <Typography variant="h4" gutterBottom>
-          Fanlar
+          {course ? `${course}-kurs fanlari` : 'Fanlar'}
         </Typography>
         <Typography color="text.secondary" sx={{ maxWidth: 620 }}>
+          {course && 'Kursingizga biriktirilgan fanlar. '}
           Har bir fan uchun kalendar-tematik ish reja va mavzular bo'yicha to'liq dars
           qo'llanmalari. Fanni tanlang — chap panelda mavzular ro'yxati ochiladi.
         </Typography>
@@ -91,7 +95,9 @@ export default function HomePage() {
 
       {!loading && subjects.length === 0 && !error && (
         <Alert severity="info">
-          Hali fan qo'shilmagan. Adminka orqali birinchi fanni qo'shing.
+          {course
+            ? `${course}-kursga hali fan biriktirilmagan.`
+            : "Hali fan qo'shilmagan. Adminka orqali birinchi fanni qo'shing."}
         </Alert>
       )}
 

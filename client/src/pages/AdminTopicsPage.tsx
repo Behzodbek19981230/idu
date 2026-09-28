@@ -3,6 +3,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import {
@@ -98,13 +99,22 @@ export default function AdminTopicsPage() {
             {topics.reduce((sum, t) => sum + t.hours, 0)} soat
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate(`/admin/fan/${subject.id}/mavzu/yangi`)}
-        >
-          Mavzu qo'shish
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<FactCheckOutlinedIcon />}
+            onClick={() => navigate(`/admin/fan/${subject.id}/jurnal`)}
+          >
+            Jurnal
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate(`/admin/fan/${subject.id}/mavzu/yangi`)}
+          >
+            Mavzu qo'shish
+          </Button>
+        </Stack>
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}

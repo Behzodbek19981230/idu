@@ -1,16 +1,25 @@
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ListAltIcon from '@mui/icons-material/ListAlt';
+import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import {
   Alert,
   Box,
   Button,
+  Checkbox,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  FormGroup,
+  FormHelperText,
+  FormLabel,
   Grid,
   IconButton,
   Paper,
@@ -29,7 +38,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import ShareDialog from '../components/ShareDialog';
-import type { Subject, SubjectInput } from '../types';
+import { COURSES, type Subject, type SubjectInput } from '../types';
 
 const emptySubject: SubjectInput = {
   name: '',
@@ -41,6 +50,7 @@ const emptySubject: SubjectInput = {
   practice_hours: 30,
   independent_hours: 60,
   position: 0,
+  courses: [],
 };
 
 export default function AdminSubjectsPage() {
@@ -77,6 +87,7 @@ export default function AdminSubjectsPage() {
       practice_hours: subject.practice_hours,
       independent_hours: subject.independent_hours,
       position: subject.position,
+      courses: subject.courses ?? [],
     });
     setDialogOpen(true);
   };
@@ -106,6 +117,14 @@ export default function AdminSubjectsPage() {
     }
   };
 
+  const toggleCourse = (course: number) =>
+    setForm((f) => ({
+      ...f,
+      courses: f.courses.includes(course)
+        ? f.courses.filter((c) => c !== course)
+        : [...f.courses, course].sort(),
+    }));
+
   const num = (v: number | null) => (v == null ? '' : String(v));
   const toNum = (v: string) => (v === '' ? null : Number(v));
 
@@ -114,6 +133,20 @@ export default function AdminSubjectsPage() {
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
         <Typography variant="h4">Fanlar boshqaruvi</Typography>
         <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<AssignmentTurnedInOutlinedIcon />}
+            onClick={() => navigate('/admin/topshiriqlar')}
+          >
+            Topshiriqlar
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<GroupsOutlinedIcon />}
+            onClick={() => navigate('/admin/talabalar')}
+          >
+            Talabalar
+          </Button>
           <Button
             variant="outlined"
             startIcon={<ShareIcon />}
@@ -138,10 +171,11 @@ export default function AdminSubjectsPage() {
               <TableRow>
                 <TableCell width={100}>Kod</TableCell>
                 <TableCell>Fan nomi</TableCell>
+                <TableCell width={150}>Kurslar</TableCell>
                 <TableCell width={90} align="center">Semestr</TableCell>
                 <TableCell width={90} align="center">Mavzular</TableCell>
                 <TableCell width={90} align="center">Soat</TableCell>
-                <TableCell width={190} align="right">Amallar</TableCell>
+                <TableCell width={225} align="right">Amallar</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -151,10 +185,28 @@ export default function AdminSubjectsPage() {
                   <TableCell>
                     <Typography variant="body2" fontWeight={500}>{s.name}</Typography>
                   </TableCell>
+                  <TableCell>
+                    {s.courses && s.courses.length > 0 ? (
+                      <Stack direction="row" spacing={0.5}>
+                        {s.courses.map((c) => (
+                          <Chip key={c} label={`${c}-kurs`} size="small" variant="outlined" />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="caption" color="warning.main">
+                        Biriktirilmagan
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell align="center">{s.semester ?? '—'}</TableCell>
                   <TableCell align="center">{s.topic_count ?? 0}</TableCell>
                   <TableCell align="center">{s.planned_hours ?? 0}</TableCell>
                   <TableCell align="right">
+                    <Tooltip title="Jurnal: davomat va baholar">
+                      <IconButton size="small" onClick={() => navigate(`/admin/fan/${s.id}/jurnal`)}>
+                        <FactCheckOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Ulashish havolasi">
                       <IconButton size="small" onClick={() => setSharing(s)}>
                         <ShareIcon fontSize="small" />
@@ -215,6 +267,29 @@ export default function AdminSubjectsPage() {
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+            </Grid>
+            <Grid item xs={12}>
+              <FormLabel component="legend" sx={{ fontSize: 13 }}>
+                Kurslar
+              </FormLabel>
+              <FormGroup row>
+                {COURSES.map((c) => (
+                  <FormControlLabel
+                    key={c}
+                    label={`${c}-kurs`}
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={form.courses.includes(c)}
+                        onChange={() => toggleCourse(c)}
+                      />
+                    }
+                  />
+                ))}
+              </FormGroup>
+              <FormHelperText sx={{ mt: 0 }}>
+                Fan faqat belgilangan kurs talabalariga ko'rinadi
+              </FormHelperText>
             </Grid>
             <Grid item xs={6} sm={3}>
               <TextField

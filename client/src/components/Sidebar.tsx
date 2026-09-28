@@ -156,7 +156,7 @@ export default function Sidebar({ subjectId, topicId, onNavigate }: SidebarProps
 
         {!loading && subjectId && topics.length === 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-            Bu fanda hali mavzu yo'q. Adminka orqali qo'shing.
+            Bu fanda hali mavzu yo'q.
           </Typography>
         )}
 

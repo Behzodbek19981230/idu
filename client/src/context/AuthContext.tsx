@@ -1,29 +1,101 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { api, getToken, setToken } from '../api/client';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { api, getToken, setToken, UNAUTHORIZED_EVENT } from '../api/client';
+import type { AuthUser, RegisterInput } from '../types';
+
+const USER_KEY = 'idu_user';
+
+function readStoredUser(): AuthUser | null {
+  if (!getToken()) return null;
+  try {
+    return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null') as AuthUser | null;
+  } catch {
+    return null;
+  }
+}
+
+function storeUser(user: AuthUser | null) {
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(USER_KEY);
+}
 
 interface AuthState {
+  user: AuthUser | null;
   isAdmin: boolean;
-  login: (login: string, password: string) => Promise<void>;
+  isStudent: boolean;
+  login: (login: string, password: string) => Promise<AuthUser>;
+  register: (data: RegisterInput) => Promise<AuthUser>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState(() => Boolean(getToken()));
+  const [user, setUser] = useState<AuthUser | null>(readStoredUser);
 
-  const login = useCallback(async (loginName: string, password: string) => {
-    const { token } = await api.login(loginName, password);
+  const applySession = useCallback((token: string | null, next: AuthUser | null) => {
     setToken(token);
-    setIsAdmin(true);
+    storeUser(next);
+    setUser(next);
   }, []);
 
-  const logout = useCallback(() => {
-    setToken(null);
-    setIsAdmin(false);
+  // Token bor bo'lsa — foydalanuvchi ma'lumotini serverdan yangilaymiz
+  // (admin talabani boshqa kursga o'tkazgan bo'lishi mumkin)
+  useEffect(() => {
+    if (!getToken()) return;
+    api
+      .me()
+      .then((fresh) => {
+        storeUser(fresh);
+        setUser(fresh);
+      })
+      .catch(() => undefined);
   }, []);
 
-  const value = useMemo(() => ({ isAdmin, login, logout }), [isAdmin, login, logout]);
+  useEffect(() => {
+    const onUnauthorized = () => applySession(null, null);
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, [applySession]);
+
+  const login = useCallback(
+    async (loginName: string, password: string) => {
+      const res = await api.login(loginName, password);
+      applySession(res.token, res.user);
+      return res.user;
+    },
+    [applySession],
+  );
+
+  const register = useCallback(
+    async (data: RegisterInput) => {
+      const res = await api.register(data);
+      applySession(res.token, res.user);
+      return res.user;
+    },
+    [applySession],
+  );
+
+  const logout = useCallback(() => applySession(null, null), [applySession]);
+
+  const value = useMemo(
+    () => ({
+      user,
+      isAdmin: user?.role === 'admin',
+      isStudent: user?.role === 'student',
+      login,
+      register,
+      logout,
+    }),
+    [user, login, register, logout],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

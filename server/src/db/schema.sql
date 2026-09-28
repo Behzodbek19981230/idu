@@ -86,3 +86,75 @@ BEGIN
     );
   END IF;
 END $$;
+
+-- Talabalar (o'zlari ro'yxatdan o'tadi)
+CREATE TABLE IF NOT EXISTS students (
+  id             SERIAL PRIMARY KEY,
+  first_name     TEXT NOT NULL,
+  last_name      TEXT NOT NULL,
+  login          TEXT NOT NULL UNIQUE,
+  password_hash  TEXT NOT NULL,
+  course         INTEGER NOT NULL CHECK (course BETWEEN 1 AND 4),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Fanlarni kurslarga biriktirish: talaba faqat o'z kursidagi fanlarni ko'radi
+CREATE TABLE IF NOT EXISTS subject_courses (
+  subject_id  INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  course      INTEGER NOT NULL CHECK (course BETWEEN 1 AND 4),
+  PRIMARY KEY (subject_id, course)
+);
+
+CREATE INDEX IF NOT EXISTS subject_courses_course_idx ON subject_courses (course);
+
+-- Jurnal: fan + kurs bo'yicha o'tilgan darslar (o'qituvchi qo'shadi)
+CREATE TABLE IF NOT EXISTS class_sessions (
+  id           SERIAL PRIMARY KEY,
+  subject_id   INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  course       INTEGER NOT NULL CHECK (course BETWEEN 1 AND 4),
+  lesson_date  DATE NOT NULL,
+  topic_id     INTEGER REFERENCES topics(id) ON DELETE SET NULL,
+  note         TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS class_sessions_subject_course_idx
+  ON class_sessions (subject_id, course, lesson_date);
+
+-- Davomat va kunlik ball. Yozuv bo'lmasa yoki talaba kelmagan bo'lsa — ball 0
+CREATE TABLE IF NOT EXISTS attendance (
+  session_id  INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+  student_id  INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  present     BOOLEAN NOT NULL DEFAULT TRUE,
+  score       NUMERIC(6,2) NOT NULL DEFAULT 0 CHECK (score >= 0),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (session_id, student_id)
+);
+
+CREATE INDEX IF NOT EXISTS attendance_student_idx ON attendance (student_id);
+
+-- Ball ixtiyoriy (0.3, 1.25 …): eski NUMERIC(4,1) ustunini kengaytirish
+ALTER TABLE attendance ALTER COLUMN score TYPE NUMERIC(6,2);
+
+-- Talaba topshiriqlari: mavzu bo'yicha matn/kod va/yoki fayl
+CREATE TABLE IF NOT EXISTS submissions (
+  id            SERIAL PRIMARY KEY,
+  student_id    INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  topic_id      INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  content_kind  TEXT NOT NULL DEFAULT 'text' CHECK (content_kind IN ('text', 'code')),
+  content       TEXT NOT NULL DEFAULT '',
+  file_name     TEXT,
+  file_path     TEXT,
+  file_size     INTEGER,
+  file_mime     TEXT,
+  status        TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted', 'graded')),
+  score         NUMERIC(6,2) CHECK (score >= 0),
+  feedback      TEXT NOT NULL DEFAULT '',
+  submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- o'qituvchi birinchi marta ochgan vaqt; NULL — yangi (bildirishnoma)
+  seen_at       TIMESTAMPTZ,
+  graded_at     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS submissions_topic_student_idx ON submissions (topic_id, student_id);
+CREATE INDEX IF NOT EXISTS submissions_unseen_idx ON submissions (submitted_at) WHERE seen_at IS NULL;

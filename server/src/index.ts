@@ -3,7 +3,10 @@ import express from 'express';
 import { env } from './env.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import { authRouter } from './routes/auth.js';
+import { journalRouter } from './routes/journal.js';
 import { publicShareRouter, sharesRouter } from './routes/shares.js';
+import { submissionsRouter } from './routes/submissions.js';
+import { studentsRouter } from './routes/students.js';
 import { subjectsRouter } from './routes/subjects.js';
 import { topicsRouter } from './routes/topics.js';
 import { pool } from './db/pool.js';
@@ -25,6 +28,9 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/subjects', subjectsRouter);
 app.use('/api/topics', topicsRouter);
+app.use('/api/students', studentsRouter);
+app.use('/api/journal', journalRouter);
+app.use('/api/submissions', submissionsRouter);
 app.use('/api/shares', sharesRouter);
 app.use('/api/share', publicShareRouter);
 

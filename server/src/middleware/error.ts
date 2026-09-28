@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 
 export class HttpError extends Error {
@@ -15,6 +16,11 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   if (err instanceof ZodError) {
     const detail = err.errors.map((e) => `${e.path.join('.') || 'maydon'}: ${e.message}`).join('; ');
     return res.status(400).json({ error: `Ma'lumot noto'g'ri — ${detail}` });
+  }
+  if (err instanceof MulterError) {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE' ? 'Fayl hajmi juda katta' : `Fayl yuklashda xato: ${err.message}`;
+    return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: message });
   }
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message });

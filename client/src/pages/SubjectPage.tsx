@@ -138,7 +138,9 @@ export default function SubjectPage() {
       )}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-        Mavzu ustiga bosing — to'liq dars qo'llanmasi ochiladi.
+        {isAdmin
+          ? "Mavzu ustiga bosing — to'liq dars qo'llanmasi ochiladi."
+          : "Mavzu ustiga bosing — topshiriq sharti ochiladi va javobingizni yuborasiz."}
       </Typography>
 
       <ShareDialog

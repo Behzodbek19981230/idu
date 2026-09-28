@@ -1,15 +1,30 @@
 import type {
+  AttendanceMark,
+  AuthUser,
+  ClassSession,
+  ClassSessionInput,
+  Journal,
+  RegisterInput,
   Share,
   SharePayload,
   Subject,
   SubjectInput,
   SubjectWithTopics,
+  Student,
+  StudentTopic,
+  StudentUpdate,
+  Submission,
+  SubmissionNotification,
+  SubmissionWithContext,
   Topic,
   TopicInput,
   TopicListItem,
 } from '../types';
 
 const TOKEN_KEY = 'idu_admin_token';
+
+/** 401 kelganda AuthContext foydalanuvchini chiqarib yuborishi uchun */
+export const UNAUTHORIZED_EVENT = 'idu:unauthorized';
 
 /**
  * API manzili .env dagi VITE_API_URL dan olinadi (server origini, `/api` siz).
@@ -33,17 +48,20 @@ export function setToken(token: string | null) {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
+  const isForm = options.body instanceof FormData;
   const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      // FormData uchun Content-Type ni brauzer o'zi (boundary bilan) qo'yadi
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 && token) {
     setToken(null);
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: `Xato ${res.status}` }));
@@ -53,12 +71,42 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Himoyalangan faylni token bilan yuklab olib, brauzerda saqlashni boshlaydi */
+async function downloadFile(path: string, fileName: string) {
+  const token = getToken();
+  const res = await fetch(apiUrl(path), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: `Xato ${res.status}` }));
+    throw new Error(body.error ?? `Xato ${res.status}`);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export const api = {
   login: (login: string, password: string) =>
-    request<{ token: string; login: string }>('/auth/login', {
+    request<{ token: string; user: AuthUser }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ login, password }),
     }),
+  register: (data: RegisterInput) =>
+    request<{ token: string; user: AuthUser }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  me: () => request<AuthUser>('/auth/me'),
+
+  // ── Talabalar (admin) ──
+  listStudents: () => request<Student[]>('/students'),
+  updateStudent: (id: number, data: StudentUpdate) =>
+    request<Student>(`/students/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteStudent: (id: number) => request<void>(`/students/${id}`, { method: 'DELETE' }),
 
   listSubjects: () => request<Subject[]>('/subjects'),
   getSubject: (id: number) => request<SubjectWithTopics>(`/subjects/${id}`),
@@ -75,6 +123,47 @@ export const api = {
   updateTopic: (id: number, data: TopicInput) =>
     request<Topic>(`/topics/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTopic: (id: number) => request<void>(`/topics/${id}`, { method: 'DELETE' }),
+  // ── Jurnal: davomat va baholar (o'qituvchi) ──
+  getJournal: (subjectId: number, course?: number | null) =>
+    request<Journal>(`/journal/${subjectId}${course ? `?course=${course}` : ''}`),
+  createSession: (subjectId: number, data: ClassSessionInput & { course: number }) =>
+    request<ClassSession>(`/journal/${subjectId}/sessions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateSession: (id: number, data: ClassSessionInput) =>
+    request<ClassSession>(`/journal/sessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSession: (id: number) => request<void>(`/journal/sessions/${id}`, { method: 'DELETE' }),
+  saveMarks: (sessionId: number, marks: Omit<AttendanceMark, 'session_id'>[]) =>
+    request<AttendanceMark[]>(`/journal/sessions/${sessionId}/marks`, {
+      method: 'PUT',
+      body: JSON.stringify({ marks }),
+    }),
+
+  // ── Topshiriqlar ──
+  getStudentTopic: (topicId: number) =>
+    request<{ topic: StudentTopic; submissions: Submission[] }>(`/submissions/topic/${topicId}`),
+  submitAssignment: (topicId: number, data: FormData) =>
+    request<Submission>(`/submissions/topic/${topicId}`, { method: 'POST', body: data }),
+  downloadSubmissionFile: (id: number, fileName: string) =>
+    downloadFile(`/submissions/${id}/file`, fileName),
+  listSubmissions: (params: { status?: 'submitted' | 'graded'; subject_id?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.status) q.set('status', params.status);
+    if (params.subject_id) q.set('subject_id', String(params.subject_id));
+    return request<SubmissionWithContext[]>(`/submissions${q.size ? `?${q}` : ''}`);
+  },
+  getSubmission: (id: number) => request<SubmissionWithContext>(`/submissions/${id}`),
+  gradeSubmission: (id: number, data: { score: number; feedback: string }) =>
+    request<SubmissionWithContext>(`/submissions/${id}/grade`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  getNotifications: () =>
+    request<{ unread: number; items: SubmissionNotification[] }>('/submissions/notifications'),
+  readAllNotifications: () =>
+    request<{ ok: true }>('/submissions/notifications/read-all', { method: 'POST' }),
+
   // ── Ulashish havolalari (admin) ──
   listShares: () => request<Share[]>('/shares'),
   createShare: (payload: { scope: 'subject'; subject_id: number } | { scope: 'topic'; topic_id: number }) =>
