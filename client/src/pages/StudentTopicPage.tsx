@@ -21,6 +21,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import CodeRunner from '../components/CodeRunner';
 import { formatScore } from '../components/JournalCells';
 import LessonTypeChip from '../components/LessonTypeChip';
 import Markdown from '../components/Markdown';
@@ -41,7 +42,8 @@ export default function StudentTopicPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [kind, setKind] = useState<SubmissionKind>('text');
+  // Kod muharriri darhol ko'rinsin; matn javob uchun "Matn"ga o'tiladi
+  const [kind, setKind] = useState<SubmissionKind>('code');
   const [content, setContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
@@ -161,42 +163,29 @@ export default function StudentTopicPage() {
               value={kind}
               onChange={(_e, value: SubmissionKind | null) => value && setKind(value)}
             >
-              <ToggleButton value="text" sx={{ px: 2 }}>
-                <NotesIcon fontSize="small" sx={{ mr: 1 }} />
-                Matn
-              </ToggleButton>
               <ToggleButton value="code" sx={{ px: 2 }}>
                 <CodeIcon fontSize="small" sx={{ mr: 1 }} />
                 Kod
               </ToggleButton>
+              <ToggleButton value="text" sx={{ px: 2 }}>
+                <NotesIcon fontSize="small" sx={{ mr: 1 }} />
+                Matn
+              </ToggleButton>
             </ToggleButtonGroup>
 
-            <TextField
-              multiline
-              minRows={kind === 'code' ? 10 : 5}
-              maxRows={30}
-              fullWidth
-              placeholder={kind === 'code' ? 'Kodingizni shu yerga joylang…' : 'Javobingizni yozing…'}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onKeyDown={(e) => {
-                // Kod rejimida Tab — bo'shliq qo'yadi, fokusni olib ketmaydi
-                if (kind === 'code' && e.key === 'Tab') {
-                  e.preventDefault();
-                  const el = e.target as HTMLTextAreaElement;
-                  const { selectionStart: start, selectionEnd: end } = el;
-                  const next = `${content.slice(0, start)}  ${content.slice(end)}`;
-                  setContent(next);
-                  requestAnimationFrame(() => el.setSelectionRange(start + 2, start + 2));
-                }
-              }}
-              InputProps={{
-                sx:
-                  kind === 'code'
-                    ? { fontFamily: '"JetBrains Mono", "Fira Code", Consolas, monospace', fontSize: 13 }
-                    : undefined,
-              }}
-            />
+            {kind === 'code' ? (
+              <CodeRunner code={content} onChange={setContent} />
+            ) : (
+              <TextField
+                multiline
+                minRows={5}
+                maxRows={30}
+                fullWidth
+                placeholder="Javobingizni yozing…"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+              />
+            )}
 
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
               <input
@@ -256,7 +245,14 @@ export default function StudentTopicPage() {
                 )}
               </Stack>
 
-              <SubmissionBody submission={s} />
+              <SubmissionBody
+                submission={s}
+                onSaved={
+                  s.status === 'graded'
+                    ? undefined
+                    : (updated) => setSubmissions((list) => list.map((x) => (x.id === updated.id ? updated : x)))
+                }
+              />
 
               {s.status === 'graded' && s.feedback.trim() && (
                 <Alert severity="info" icon={false} sx={{ mt: 1.5 }}>

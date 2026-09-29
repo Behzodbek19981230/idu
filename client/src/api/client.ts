@@ -88,8 +88,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** Himoyalangan faylni token bilan yuklab olib, brauzerda saqlashni boshlaydi */
-async function downloadFile(path: string, fileName: string) {
+/** Himoyalangan faylni token bilan olish */
+async function fetchFile(path: string) {
   const token = getToken();
   const res = await fetch(apiUrl(path), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -99,6 +99,12 @@ async function downloadFile(path: string, fileName: string) {
     const body = await res.json().catch(() => ({ error: `Xato ${res.status}` }));
     throw new Error(body.error ?? `Xato ${res.status}`);
   }
+  return res;
+}
+
+/** Himoyalangan faylni token bilan yuklab olib, brauzerda saqlashni boshlaydi */
+async function downloadFile(path: string, fileName: string) {
+  const res = await fetchFile(path);
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
   a.href = url;
@@ -165,6 +171,9 @@ export const api = {
     request<Submission>(`/submissions/topic/${topicId}`, { method: 'POST', body: data }),
   downloadSubmissionFile: (id: number, fileName: string) =>
     downloadFile(`/submissions/${id}/file`, fileName),
+  saveSubmissionCode: (id: number, target: 'content' | 'file', code: string) =>
+    request<Submission>(`/submissions/${id}/code`, { method: 'PATCH', body: JSON.stringify({ target, code }) }),
+  getSubmissionFileText: (id: number) => fetchFile(`/submissions/${id}/file`).then((res) => res.text()),
   listSubmissions: (params: { status?: 'submitted' | 'graded'; subject_id?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.status) q.set('status', params.status);

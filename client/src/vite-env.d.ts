@@ -9,3 +9,15 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Monaco'ning ichki Monarch til ta'riflari (tip fayllari yo'q)
+declare module 'monaco-editor/languages/definitions/html/html' {
+  import type { languages } from 'monaco-editor';
+  export const language: languages.IMonarchLanguage & { tokenizer: Record<string, languages.IMonarchLanguageRule[]> };
+  export const conf: languages.LanguageConfiguration;
+}
+declare module 'monaco-editor/languages/definitions/css/css' {
+  import type { languages } from 'monaco-editor';
+  export const language: languages.IMonarchLanguage & { tokenizer: Record<string, languages.IMonarchLanguageRule[]> };
+  export const conf: languages.LanguageConfiguration;
+}

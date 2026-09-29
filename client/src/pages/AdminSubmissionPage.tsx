@@ -145,7 +145,10 @@ export default function AdminSubmissionPage() {
         <Typography variant="overline" color="text.secondary" display="block" sx={{ mb: 1 }}>
           {submission.content_kind === 'code' ? 'Kod' : 'Javob'}
         </Typography>
-        <SubmissionBody submission={submission} />
+        <SubmissionBody
+          submission={submission}
+          onSaved={(updated) => setSubmission((prev) => (prev ? { ...prev, ...updated } : prev))}
+        />
       </Paper>
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>

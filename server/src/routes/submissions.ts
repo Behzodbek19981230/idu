@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { unlink } from 'node:fs/promises';
+import { unlink, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
@@ -140,6 +140,49 @@ submissionsRouter.get(
       throw new HttpError(403, 'Bu fayl sizga tegishli emas');
     }
     res.download(join(uploadDir, row.file_path), row.file_name ?? 'fayl');
+  }),
+);
+
+/** Brauzerda tahrirlab saqlasa bo'ladigan fayllar (kod ko'rinishida ochiladiganlar bilan bir xil) */
+const EDITABLE_FILE = /\.(html?|m?js|css|txt)$/i;
+
+/**
+ * Kodni tahrirlab saqlash: yuborilgan kod matni (target=content) yoki biriktirilgan fayl (target=file).
+ * O'qituvchi — istalganini; talaba — faqat o'zining, hali baholanmagan topshirig'ini.
+ */
+submissionsRouter.patch(
+  '/:id/code',
+  requireUser,
+  asyncHandler(async (req, res) => {
+    const data = z
+      .object({
+        target: z.enum(['content', 'file']),
+        // Matn yuborishdagi chegara bilan bir xil; fayl — ochiladigan hajmgacha (1 MB)
+        code: z.string().max(1_000_000, 'kod juda uzun'),
+      })
+      .refine((d) => d.target === 'file' || d.code.length <= 200_000, 'kod juda uzun')
+      .parse(req.body);
+    const id = Number(req.params.id);
+    const row = await one<Submission>('SELECT * FROM submissions WHERE id = $1', [id]);
+    if (!row) throw new HttpError(404, 'Topshiriq topilmadi');
+    if (req.user!.role === 'student') {
+      if (row.student_id !== req.user!.id) throw new HttpError(403, 'Bu topshiriq sizga tegishli emas');
+      if (row.status === 'graded') throw new HttpError(403, 'Baholangan topshiriqni o‘zgartirib bo‘lmaydi');
+    }
+
+    if (data.target === 'content') {
+      if (row.content_kind !== 'code') throw new HttpError(400, 'Bu topshiriqda kod yo‘q');
+      await one('UPDATE submissions SET content = $1 WHERE id = $2', [data.code, id]);
+    } else {
+      if (!row.file_path || !row.file_name || !EDITABLE_FILE.test(row.file_name)) {
+        throw new HttpError(400, 'Bu faylni tahrirlab bo‘lmaydi');
+      }
+      await writeFile(join(uploadDir, row.file_path), data.code, 'utf8');
+      await one('UPDATE submissions SET file_size = $1 WHERE id = $2', [Buffer.byteLength(data.code), id]);
+    }
+
+    const saved = await one(`SELECT ${PUBLIC_COLUMNS} FROM submissions sb WHERE sb.id = $1`, [id]);
+    res.json(saved);
   }),
 );
 
