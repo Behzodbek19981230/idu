@@ -17,7 +17,7 @@ dinamik qo'shiladi — kodga tegmasdan.
 idu/
 ├── server/                  # Express API
 │   └── src/
-│       ├── db/              # pool, schema.sql, migrate, seed
+│       ├── db/              # pool, schema.sql, migrate
 │       ├── routes/          # auth, subjects, topics
 │       ├── middleware/      # JWT, xatolar
 │       └── index.ts
@@ -80,7 +80,6 @@ VITE_API_URL=https://api.idu.universal-uz.uz
 ```bash
 npm run install:all     # root + server + client
 npm run db:migrate      # jadvallarni yaratadi
-npm run db:seed         # namuna fan va 5 ta dars qo'llanmasi
 npm run dev             # server :4000, client :5173
 ```
 

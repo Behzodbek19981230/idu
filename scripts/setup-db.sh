@@ -29,4 +29,4 @@ fi
 
 echo
 echo "✓ Tayyor. Endi quyidagini bajaring:"
-echo "    npm run db:migrate && npm run db:seed"
+echo "    npm run db:migrate"
