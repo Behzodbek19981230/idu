@@ -32,6 +32,7 @@ const marksSchema = z.object({
         student_id: z.coerce.number().int().positive(),
         present: z.boolean(),
         score: scoreSchema,
+        score_override: z.boolean().default(false),
       }),
     )
     .min(1),
@@ -110,7 +111,7 @@ journalRouter.get(
     );
 
     const marks = await many<AttendanceMark>(
-      `SELECT a.session_id, a.student_id, a.present, a.score::float8 AS score
+      `SELECT a.session_id, a.student_id, a.present, a.score::float8 AS score, a.score_override
          FROM attendance a JOIN class_sessions cs ON cs.id = a.session_id
         WHERE cs.subject_id = $1 AND cs.course = $2`,
       [subjectId, course],
@@ -235,11 +236,18 @@ journalRouter.put(
       await client.query('BEGIN');
       for (const mark of marks) {
         await client.query(
-          `INSERT INTO attendance (session_id, student_id, present, score)
-           VALUES ($1, $2, $3, $4)
+          `INSERT INTO attendance (session_id, student_id, present, score, score_override)
+           VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT (session_id, student_id)
-           DO UPDATE SET present = EXCLUDED.present, score = EXCLUDED.score, updated_at = now()`,
-          [sessionId, mark.student_id, mark.present, mark.present ? mark.score : 0],
+           DO UPDATE SET present = EXCLUDED.present, score = EXCLUDED.score,
+                         score_override = EXCLUDED.score_override, updated_at = now()`,
+          [
+            sessionId,
+            mark.student_id,
+            mark.present,
+            mark.present ? mark.score : 0,
+            mark.present && mark.score_override,
+          ],
         );
       }
       await client.query('COMMIT');
@@ -251,7 +259,7 @@ journalRouter.put(
     }
 
     const saved = await many<AttendanceMark>(
-      `SELECT session_id, student_id, present, score::float8 AS score
+      `SELECT session_id, student_id, present, score::float8 AS score, score_override
          FROM attendance WHERE session_id = $1 AND student_id = ANY($2::int[])`,
       [sessionId, marks.map((m) => m.student_id)],
     );

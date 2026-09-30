@@ -168,6 +168,8 @@ export interface AttendanceMark {
   student_id: number;
   present: boolean;
   score: number;
+  /** true — score kunning yakuniy bali (admin qo'lda qo'ygan), topshiriq bali qo'shilmaydi */
+  score_override: boolean;
 }
 
 export type JournalStudent = Omit<Student, 'created_at'>;
@@ -182,6 +184,42 @@ export interface Journal {
   task_scores: { session_id: number; student_id: number; score: number; count: number }[];
   /** Jurnalda hali darsi yo'q mavzular bo'yicha topshiriq ballari */
   unassigned_task_scores: { student_id: number; score: number; count: number }[];
+}
+
+/** Talabaning o'z jurnali: bitta dars kuni */
+export interface MyJournalDay {
+  session_id: number;
+  lesson_date: string;
+  topic_id: number | null;
+  topic_title: string | null;
+  /** null — belgilanmagan */
+  present: boolean | null;
+  /** Darsdagi ball (score_override bo'lsa — kunning yakuniy bali) */
+  score: number;
+  score_override: boolean;
+  /** Shu mavzu bo'yicha baholangan topshiriqlar yig'indisi */
+  task_score: number | null;
+  task_count: number;
+}
+
+export interface MyJournalSubmission {
+  id: number;
+  topic_id: number;
+  topic_title: string;
+  status: 'submitted' | 'graded';
+  score: number | null;
+  feedback: string;
+  submitted_at: string;
+  graded_at: string | null;
+  file_name: string | null;
+  content_kind: SubmissionKind;
+}
+
+export interface MyJournal {
+  days: MyJournalDay[];
+  submissions: MyJournalSubmission[];
+  unassigned_task_score: number;
+  unassigned_task_count: number;
 }
 
 export type SubmissionKind = 'text' | 'code';

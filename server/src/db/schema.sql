@@ -136,6 +136,9 @@ CREATE INDEX IF NOT EXISTS attendance_student_idx ON attendance (student_id);
 -- Ball ixtiyoriy (0.3, 1.25 …): eski NUMERIC(4,1) ustunini kengaytirish
 ALTER TABLE attendance ALTER COLUMN score TYPE NUMERIC(6,2);
 
+-- Admin katakni qo'lda o'zgartirgan: score — kunning yakuniy bali, topshiriq bali ustiga qo'shilmaydi
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS score_override BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Talaba topshiriqlari: mavzu bo'yicha matn/kod va/yoki fayl
 CREATE TABLE IF NOT EXISTS submissions (
   id            SERIAL PRIMARY KEY,

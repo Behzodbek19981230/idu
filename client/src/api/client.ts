@@ -1,5 +1,6 @@
 import type {
   AttendanceMark,
+  MyJournal,
   AuthUser,
   ClassSession,
   ClassSessionInput,
@@ -163,6 +164,8 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ marks }),
     }),
+
+  getMyJournal: (subjectId: number) => request<MyJournal>(`/my-journal/${subjectId}`),
 
   // ── Topshiriqlar ──
   getStudentTopic: (topicId: number) =>

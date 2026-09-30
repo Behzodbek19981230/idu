@@ -16,6 +16,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import PlanTable from '../components/PlanTable';
 import ShareDialog from '../components/ShareDialog';
+import StudentGrades from '../components/StudentGrades';
 import { useAuth } from '../context/AuthContext';
 import type { SubjectWithTopics } from '../types';
 
@@ -35,7 +36,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 export default function SubjectPage() {
   const { subjectId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isStudent } = useAuth();
   const [subject, setSubject] = useState<SubjectWithTopics | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -123,6 +124,8 @@ export default function SubjectPage() {
           <Stat label="Mustaqil ta'lim" value={subject.independent_hours} />
         </Grid>
       </Grid>
+
+      {isStudent && <StudentGrades subjectId={subject.id} />}
 
       <Typography variant="h6" gutterBottom>
         Kalendar-tematik reja

@@ -100,7 +100,8 @@ export interface TaskScore {
 interface ScoreCellProps extends CellPosition {
   mark: AttendanceMark | undefined;
   task: TaskScore | undefined;
-  onCommit: (score: number) => void;
+  /** override — true: score kunning yakuniy bali (topshiriq bali qo'shilmaydi) */
+  onCommit: (score: number, override: boolean) => void;
   rowCount: number;
 }
 
@@ -120,8 +121,21 @@ const taskCornerSx = {
   },
 } as const;
 
+/** Qo'lda o'zgartirilgan katak — sariq burchak */
+const overrideCornerSx = {
+  ...taskCornerSx,
+  '&::after': { ...taskCornerSx['&::after'], borderRightColor: 'warning.main' },
+} as const;
+
 function taskHint(manual: number, task: TaskScore) {
   return `Darsdagi ball: ${formatScore(manual)} · Topshiriq (${task.count} ta): ${formatScore(task.score)}`;
+}
+
+function overrideHint(task: TaskScore | undefined) {
+  const ignored = task && task.score > 0
+    ? ` Topshiriq bali (${task.count} ta: ${formatScore(task.score)}) qo‘shilmaydi.`
+    : '';
+  return `Qo‘lda o‘zgartirilgan.${ignored} Katakni bo‘shatsangiz — avtomatik hisobga qaytadi.`;
 }
 
 /**
@@ -129,20 +143,24 @@ function taskHint(manual: number, task: TaskScore) {
  * Esc — bekor qiladi. Bo'sh qoldirilsa — 0. NB bo'lgan kunda darsdagi ball qo'yilmaydi.
  *
  * Katakda kunning jami bali ko'rinadi: darsdagi ball + shu mavzu bo'yicha topshiriq ballari.
- * Tahrirlashda (fokusda) faqat darsdagi ball o'zgaradi, topshiriq bali alohida hisoblanadi.
+ * Topshiriq bali bor katak o'zgartirilsa — yozilgan son kunning yakuniy bali bo'ladi
+ * (score_override), topshiriq bali ustiga qo'shilmaydi. Bunday katak bo'shatilsa —
+ * qo'lda qo'yilgan ball olib tashlanadi va avtomatik hisob (0 + topshiriq) qaytadi.
  */
 export function ScoreCell({ mark, task, onCommit, grid, row, col, rowCount }: ScoreCellProps) {
-  const saved = mark?.present ? formatScore(mark.score) : '';
+  const overridden = Boolean(mark?.present && mark.score_override);
+  const hasTask = Boolean(!overridden && task && task.score > 0);
+  const manual = mark?.present ? mark.score : 0;
+  const total = manual + (hasTask ? task!.score : 0);
+  // Tahrirlanadigan qiymat — katakda ko'ringan kunning jami bali
+  const saved = mark?.present || hasTask ? formatScore(total) : '';
   const [draft, setDraft] = useState(saved);
   const [invalid, setInvalid] = useState(false);
-  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     setDraft(saved);
     setInvalid(false);
   }, [saved]);
-
-  const hasTask = Boolean(task && task.score > 0);
 
   if (mark && !mark.present) {
     // Kelmagan kun: darsdagi ball 0, lekin yuborgan topshiriq bali baribir hisoblanadi
@@ -178,41 +196,38 @@ export function ScoreCell({ mark, task, onCommit, grid, row, col, rowCount }: Sc
   const commit = (): boolean => {
     const text = draft.trim();
     if (text === saved) return true;
+    if (overridden && text === '') {
+      onCommit(0, false);
+      return true;
+    }
     const value = text === '' ? 0 : Number(text.replace(',', '.'));
     if (!isValidScore(value)) {
       setInvalid(true);
       return false;
     }
     setInvalid(false);
-    if (mark?.present && value === mark.score) {
+    const override = overridden || hasTask;
+    if (value === total && override === overridden) {
       setDraft(saved);
       return true;
     }
-    onCommit(value);
+    onCommit(value, override);
     return true;
   };
 
-  const manual = mark?.present ? mark.score : 0;
-  const total = manual + (task?.score ?? 0);
-  // Fokusda — tahrirlanadigan darsdagi ball, aks holda — kunning jami bali
-  const shown = focused || !hasTask ? draft : formatScore(total);
-
   return (
-    <Box sx={hasTask ? taskCornerSx : undefined} title={hasTask ? taskHint(manual, task!) : undefined}>
+    <Box
+      sx={overridden ? overrideCornerSx : hasTask ? taskCornerSx : undefined}
+      title={overridden ? overrideHint(task) : hasTask ? taskHint(manual, task!) : undefined}
+    >
       <InputBase
-        value={shown}
+        value={draft}
         onChange={(e) => {
           setDraft(e.target.value);
           setInvalid(false);
         }}
-        onFocus={(e) => {
-          setFocused(true);
-          const el = e.target;
-          // Qiymat jamidan darsdagi ballga almashgach belgilanadi
-          requestAnimationFrame(() => el.select());
-        }}
+        onFocus={(e) => e.target.select()}
         onBlur={() => {
-          setFocused(false);
           if (!commit()) {
             setDraft(saved);
             setInvalid(false);
@@ -233,22 +248,12 @@ export function ScoreCell({ mark, task, onCommit, grid, row, col, rowCount }: Sc
           if (NAV_KEYS[e.key] && !commit()) return;
           navigate(e, grid, row, col);
         }}
-        endAdornment={
-          focused && hasTask ? (
-            <Box
-              component="span"
-              sx={{ color: 'success.main', fontSize: 11, pr: 0.5, whiteSpace: 'nowrap' }}
-            >
-              +{formatScore(task!.score)}
-            </Box>
-          ) : undefined
-        }
         inputProps={{
           'data-grid': grid,
           'data-row': row,
           'data-col': col,
           inputMode: 'decimal',
-          'aria-label': 'Darsdagi ball',
+          'aria-label': 'Kunning bali',
         }}
         title={invalid ? 'Manfiy bo‘lmagan son kiriting, masalan 0,3 yoki 1,5' : undefined}
         sx={(theme) => ({

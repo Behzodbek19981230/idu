@@ -135,8 +135,9 @@ export default function AdminJournalPage() {
     journal?.students.forEach((st) => {
       const t = { present: 0, absent: 0, score: unassignedTasks.get(st.id)?.score ?? 0 };
       journal.sessions.forEach((se) => {
-        t.score += taskScores.get(markKey(se.id, st.id))?.score ?? 0;
         const m = marks.get(markKey(se.id, st.id));
+        // Qo'lda o'zgartirilgan katakda topshiriq bali qo'shilmaydi
+        if (!(m?.present && m.score_override)) t.score += taskScores.get(markKey(se.id, st.id))?.score ?? 0;
         if (!m) return;
         if (m.present) {
           t.present += 1;
@@ -159,6 +160,7 @@ export default function AdminJournalPage() {
       ...m,
       session_id: sessionId,
       score: m.present ? m.score : 0,
+      score_override: m.present && m.score_override,
     }));
     setJournal((j) => j && { ...j, marks: upsertMarks(j.marks, optimistic) });
     try {
@@ -174,7 +176,7 @@ export default function AdminJournalPage() {
     const m = marks.get(markKey(sessionId, studentId));
     // Yozuv yo'q → keldi; keldi → NB (ball 0); NB → keldi (ball 0 dan boshlanadi)
     const present = !m ? true : !m.present;
-    saveMarks(sessionId, [{ student_id: studentId, present, score: present && m?.present ? m.score : 0 }]);
+    saveMarks(sessionId, [{ student_id: studentId, present, score: 0, score_override: false }]);
   };
 
   const markAllPresent = (session: ClassSession) => {
@@ -182,7 +184,7 @@ export default function AdminJournalPage() {
     if (!journal) return;
     const items = journal.students
       .filter((st) => !marks.get(markKey(session.id, st.id))?.present)
-      .map((st) => ({ student_id: st.id, present: true, score: 0 }));
+      .map((st) => ({ student_id: st.id, present: true, score: 0, score_override: false }));
     if (items.length) saveMarks(session.id, items);
   };
 
@@ -431,8 +433,10 @@ export default function AdminJournalPage() {
                                   rowCount={students.length}
                                   mark={m}
                                   task={taskScores.get(markKey(se.id, st.id))}
-                                  onCommit={(score) =>
-                                    saveMarks(se.id, [{ student_id: st.id, present: true, score }])
+                                  onCommit={(score, override) =>
+                                    saveMarks(se.id, [
+                                      { student_id: st.id, present: true, score, score_override: override },
+                                    ])
                                   }
                                 />
                               )}
@@ -506,7 +510,7 @@ export default function AdminJournalPage() {
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
               {sheet === 'davomat'
                 ? 'Katakka bosing (yoki Space) — keldi ✓ / kelmadi NB. Strelkalar bilan kataklar bo‘ylab yuriladi.'
-                : 'Ballni to‘g‘ridan-to‘g‘ri yozing — istalgan son (masalan 0,3, 1 yoki 1,5). Yashil burchakli katak — shu mavzu bo‘yicha topshiriq ballari avtomatik qo‘shilgan (katakda kunning jami bali; tahrirlashda faqat darsdagi ball o‘zgaradi). Enter — saqlab pastga, strelkalar — qo‘shni katakka, Esc — bekor qilish. Bo‘sh katak va NB kunlari 0 ball.'}{' '}
+                : 'Ballni to‘g‘ridan-to‘g‘ri yozing — istalgan son (masalan 0,3, 1 yoki 1,5). Yashil burchakli katak — shu mavzu bo‘yicha topshiriq ballari avtomatik qo‘shilgan (katakda kunning jami bali). Uni o‘zgartirsangiz — yozilgan son kunning yakuniy bali bo‘ladi, topshiriq bali ustiga qo‘shilmaydi (sariq burchak); katakni bo‘shatsangiz — avtomatik hisobga qaytadi. Enter — saqlab pastga, strelkalar — qo‘shni katakka, Esc — bekor qilish. Bo‘sh katak va NB kunlari 0 ball.'}{' '}
               Sana ustiga bosing — darsni tahrirlash yoki o'chirish.
             </Typography>
           )}

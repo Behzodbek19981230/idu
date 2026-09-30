@@ -184,7 +184,8 @@ function addGradesSheet(wb: ExcelJS.Workbook, journal: Journal) {
 
     sessions.forEach((se, i) => {
       const m = marks.get(key(se.id, st.id));
-      const task = tasks.get(key(se.id, st.id));
+      // Qo'lda o'zgartirilgan katak — topshiriq bali qo'shilmaydi
+      const task = m?.present && m.score_override ? undefined : tasks.get(key(se.id, st.id));
       const manual = m?.present ? m.score : 0;
       const taskScore = task?.score ?? 0;
       const cell = row.getCell(firstSession + i);

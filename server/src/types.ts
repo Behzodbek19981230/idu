@@ -73,6 +73,8 @@ export interface AttendanceMark {
   student_id: number;
   present: boolean;
   score: number;
+  /** true — score kunning yakuniy bali (admin qo'lda qo'ygan), topshiriq bali qo'shilmaydi */
+  score_override: boolean;
 }
 
 export interface Submission {
