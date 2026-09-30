@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { formatScore, isValidScore } from '../components/JournalCells';
+import StudentSubmissionsDialog from '../components/StudentSubmissionsDialog';
 import SubmissionBody from '../components/SubmissionBody';
 import { formatDateTime, type SubmissionWithContext } from '../types';
 
@@ -31,6 +32,7 @@ export default function AdminSubmissionPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [showStudent, setShowStudent] = useState(false);
 
   useEffect(() => {
     if (!submissionId) return;
@@ -112,9 +114,17 @@ export default function AdminSubmissionPage() {
         sx={{ mb: 3 }}
       >
         <Box>
-          <Typography variant="h5">
+          <Link
+            component="button"
+            variant="h5"
+            color="inherit"
+            underline="hover"
+            title="Talabaning barcha topshiriqlari"
+            onClick={() => setShowStudent(true)}
+            sx={{ textAlign: 'left' }}
+          >
             {submission.last_name} {submission.first_name}
-          </Typography>
+          </Link>
           <Typography color="text.secondary">
             {submission.course}-kurs · {submission.subject_code} — {submission.topic_title}
           </Typography>
@@ -211,6 +221,21 @@ export default function AdminSubmissionPage() {
           </Stack>
         </form>
       </Paper>
+
+      <StudentSubmissionsDialog
+        student={
+          showStudent
+            ? {
+                id: submission.student_id,
+                first_name: submission.first_name,
+                last_name: submission.last_name,
+                course: submission.course,
+              }
+            : null
+        }
+        currentId={submission.id}
+        onClose={() => setShowStudent(false)}
+      />
     </Box>
   );
 }

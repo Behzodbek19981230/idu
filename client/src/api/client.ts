@@ -177,10 +177,13 @@ export const api = {
   saveSubmissionCode: (id: number, target: 'content' | 'file', code: string) =>
     request<Submission>(`/submissions/${id}/code`, { method: 'PATCH', body: JSON.stringify({ target, code }) }),
   getSubmissionFileText: (id: number) => fetchFile(`/submissions/${id}/file`).then((res) => res.text()),
-  listSubmissions: (params: { status?: 'submitted' | 'graded'; subject_id?: number } = {}) => {
+  listSubmissions: (
+    params: { status?: 'submitted' | 'graded'; subject_id?: number; student_id?: number } = {},
+  ) => {
     const q = new URLSearchParams();
     if (params.status) q.set('status', params.status);
     if (params.subject_id) q.set('subject_id', String(params.subject_id));
+    if (params.student_id) q.set('student_id', String(params.student_id));
     return request<SubmissionWithContext[]>(`/submissions${q.size ? `?${q}` : ''}`);
   },
   getSubmission: (id: number) => request<SubmissionWithContext>(`/submissions/${id}`),

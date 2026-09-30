@@ -16,6 +16,7 @@ import {
   IconButton,
   InputAdornment,
   InputLabel,
+  Link,
   MenuItem,
   Paper,
   Select,
@@ -33,6 +34,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import StudentSubmissionsDialog from '../components/StudentSubmissionsDialog';
 import { COURSES, type RegisterInput, type Student } from '../types';
 
 export default function AdminStudentsPage() {
@@ -46,6 +48,7 @@ export default function AdminStudentsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [viewing, setViewing] = useState<Student | null>(null);
 
   const load = () => {
     api.listStudents().then(setStudents).catch((e: Error) => setError(e.message));
@@ -181,9 +184,17 @@ export default function AdminStudentsPage() {
               {filtered.map((s) => (
                 <TableRow key={s.id} hover>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Link
+                      component="button"
+                      variant="body2"
+                      fontWeight={500}
+                      underline="hover"
+                      title="Yuborgan topshiriqlari"
+                      sx={{ textAlign: 'left' }}
+                      onClick={() => setViewing(s)}
+                    >
                       {s.last_name} {s.first_name}
-                    </Typography>
+                    </Link>
                   </TableCell>
                   <TableCell>{s.login}</TableCell>
                   <TableCell>
@@ -223,6 +234,8 @@ export default function AdminStudentsPage() {
       <Button sx={{ mt: 2 }} onClick={load}>
         Yangilash
       </Button>
+
+      <StudentSubmissionsDialog student={viewing} onClose={() => setViewing(null)} />
 
       <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Talabani tahrirlash</DialogTitle>

@@ -27,6 +27,7 @@ import { useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { formatScore } from '../components/JournalCells';
+import StudentSubmissionsDialog, { type SubmissionsStudent } from '../components/StudentSubmissionsDialog';
 import { formatDateTime, type Subject, type SubmissionWithContext } from '../types';
 
 type StatusFilter = 'submitted' | 'graded' | 'all';
@@ -40,6 +41,7 @@ export default function AdminSubmissionsPage() {
   const [rows, setRows] = useState<SubmissionWithContext[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [error, setError] = useState('');
+  const [student, setStudent] = useState<SubmissionsStudent | null>(null);
 
   useEffect(() => {
     api.listSubjects().then(setSubjects).catch(() => setSubjects([]));
@@ -140,9 +142,21 @@ export default function AdminSubmissionsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={r.seen_at ? 400 : 700}>
+                    <Link
+                      component="button"
+                      variant="body2"
+                      color="inherit"
+                      underline="hover"
+                      fontWeight={r.seen_at ? 400 : 700}
+                      title="Talabaning barcha topshiriqlari"
+                      sx={{ display: 'block', textAlign: 'left' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setStudent({ id: r.student_id, first_name: r.first_name, last_name: r.last_name, course: r.course });
+                      }}
+                    >
                       {r.last_name} {r.first_name}
-                    </Typography>
+                    </Link>
                     <Typography variant="caption" color="text.secondary">
                       {r.course}-kurs
                     </Typography>
@@ -176,6 +190,8 @@ export default function AdminSubmissionsPage() {
           </Table>
         </TableContainer>
       )}
+
+      <StudentSubmissionsDialog student={student} onClose={() => setStudent(null)} />
     </Box>
   );
 }

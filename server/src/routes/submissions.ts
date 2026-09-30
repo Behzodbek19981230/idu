@@ -218,15 +218,16 @@ submissionsRouter.post(
   }),
 );
 
-/** Ro'yxat: ?status=submitted|graded&subject_id=1 */
+/** Ro'yxat: ?status=submitted|graded&subject_id=1&student_id=5 */
 submissionsRouter.get(
   '/',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const { status, subject_id } = z
+    const { status, subject_id, student_id } = z
       .object({
         status: z.enum(['submitted', 'graded']).optional(),
         subject_id: z.coerce.number().int().positive().optional(),
+        student_id: z.coerce.number().int().positive().optional(),
       })
       .parse(req.query);
     const rows = await many(
@@ -234,9 +235,10 @@ submissionsRouter.get(
          FROM submissions sb ${CONTEXT_JOINS}
         WHERE ($1::text IS NULL OR sb.status = $1)
           AND ($2::int IS NULL OR s.id = $2)
+          AND ($3::int IS NULL OR sb.student_id = $3)
         ORDER BY sb.submitted_at DESC
         LIMIT 500`,
-      [status ?? null, subject_id ?? null],
+      [status ?? null, subject_id ?? null, student_id ?? null],
     );
     res.json(rows);
   }),
