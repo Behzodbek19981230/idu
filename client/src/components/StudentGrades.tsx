@@ -169,7 +169,7 @@ export default function StudentGrades({ subjectId }: { subjectId: number }) {
               <TableFooter>
                 <TableRow>
                   <TableCell colSpan={4} sx={{ color: 'text.secondary' }}>
-                    Darsi hali jurnalda yo'q mavzular bo'yicha topshiriqlar ({data.unassigned_task_count} ta)
+                    Yuborilgan kungacha jurnalda dars bo'lmagan topshiriqlar ({data.unassigned_task_count} ta)
                   </TableCell>
                   <TableCell align="center" sx={{ color: 'success.main', fontWeight: 600 }}>
                     +{formatScore(data.unassigned_task_score)}

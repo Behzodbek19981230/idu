@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { many, one } from '../db/pool.js';
 import { assertSubjectAccess, requireUser } from '../middleware/auth.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
+import { LOCAL_TZ } from './journal.js';
 
 export const myJournalRouter = Router(); // /api/my-journal — talabaning o'z davomati va baholari
 
@@ -10,7 +11,7 @@ myJournalRouter.use(requireUser);
 /**
  * Talabaning fan bo'yicha jurnali: har bir dars kuni (davomat, darsdagi ball, topshiriq bali, kunlik ball)
  * va yuborgan barcha topshiriqlari. Hisob admin jurnalidagi bilan bir xil:
- * topshiriq bali mavzu o'tilgan birinchi darsga qo'shiladi, qo'lda o'zgartirilgan kunda qo'shilmaydi.
+ * topshiriq bali u yuborilgan kundagi (u kuni dars bo'lmasa — oldingi eng yaqin) darsga qo'shiladi, qo'lda o'zgartirilgan kunda qo'shilmaydi.
  */
 myJournalRouter.get(
   '/:subjectId',
@@ -40,16 +41,19 @@ myJournalRouter.get(
             AND (cs.course = $3 OR EXISTS (
                   SELECT 1 FROM attendance a WHERE a.session_id = cs.id AND a.student_id = $2))
        ),
-       topic_session AS (
-         SELECT DISTINCT ON (topic_id) id, topic_id
-           FROM my_sessions WHERE topic_id IS NOT NULL
-          ORDER BY topic_id, lesson_date, id
+       graded AS (
+         SELECT sb.score, (
+                  SELECT ms.id FROM my_sessions ms
+                   WHERE ms.lesson_date <= (sb.submitted_at AT TIME ZONE '${LOCAL_TZ}')::date
+                   ORDER BY ms.lesson_date DESC, (ms.topic_id IS NOT DISTINCT FROM sb.topic_id) DESC, ms.id
+                   LIMIT 1) AS session_id
+           FROM submissions sb JOIN topics t ON t.id = sb.topic_id
+          WHERE t.subject_id = $1 AND sb.student_id = $2 AND sb.status = 'graded'
        ),
        tasks AS (
-         SELECT ts.id AS session_id, SUM(sb.score)::float8 AS score, COUNT(*)::int AS count
-           FROM submissions sb JOIN topic_session ts ON ts.topic_id = sb.topic_id
-          WHERE sb.student_id = $2 AND sb.status = 'graded'
-          GROUP BY ts.id
+         SELECT session_id, SUM(score)::float8 AS score, COUNT(*)::int AS count
+           FROM graded WHERE session_id IS NOT NULL
+          GROUP BY session_id
        )
        SELECT ms.id AS session_id, to_char(ms.lesson_date, 'YYYY-MM-DD') AS lesson_date,
               ms.topic_id, t.title AS topic_title,
@@ -73,17 +77,17 @@ myJournalRouter.get(
       [subjectId, user.id],
     );
 
-    // Darsi hali jurnalda yo'q mavzular bo'yicha baholangan topshiriqlar — jami ballga baribir qo'shiladi
-    const dayTopics = new Set(days.map((d) => d.topic_id).filter((id) => id !== null));
-    const unassigned = submissions.filter(
-      (s) => s.status === 'graded' && !dayTopics.has(s.topic_id),
-    );
+    // Yuborilgan kungacha dars bo'lmagan baholangan topshiriqlar — jami ballga baribir qo'shiladi
+    const assigned = days.reduce((sum, d) => sum + d.task_count, 0);
+    const assignedScore = days.reduce((sum, d) => sum + (d.task_score ?? 0), 0);
+    const graded = submissions.filter((s) => s.status === 'graded');
+    const gradedScore = graded.reduce((sum, s) => sum + Number(s.score ?? 0), 0);
 
     res.json({
       days,
       submissions,
-      unassigned_task_score: unassigned.reduce((sum, s) => sum + Number(s.score ?? 0), 0),
-      unassigned_task_count: unassigned.length,
+      unassigned_task_score: Math.round((gradedScore - assignedScore) * 100) / 100,
+      unassigned_task_count: graded.length - assigned,
     });
   }),
 );

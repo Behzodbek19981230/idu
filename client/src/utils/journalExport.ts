@@ -5,8 +5,9 @@ import type { Journal } from '../types';
  * Jurnalni Excel (.xlsx) ga eksport qilish. Brauzerda yaratiladi.
  * Hisob qoidalari jurnal sahifasi bilan bir xil:
  *  - NB yoki yozuvsiz kun — darsdagi ball 0;
- *  - kunlik ball = darsdagi ball + shu mavzu bo'yicha baholangan topshiriqlar yig'indisi;
- *  - darsi hali yo'q mavzular topshiriqlari — "Darssiz topshiriq" ustunida.
+ *  - kunlik ball = darsdagi ball + shu kunga tushgan baholangan topshiriqlar yig'indisi
+ *    (topshiriq yuborilgan kun yoki u kuni dars bo'lmasa — oldingi eng yaqin dars);
+ *  - yuborilgan kungacha dars bo'lmagan topshiriqlar — "Darssiz topshiriq" ustunida.
  */
 
 export type ExportSheet = 'davomat' | 'baholar';
@@ -211,7 +212,7 @@ function addGradesSheet(wb: ExcelJS.Workbook, journal: Journal) {
       const u = unassigned.get(st.id);
       if (u) {
         row.getCell(unassignedCol).value = round2(u.score);
-        row.getCell(unassignedCol).note = `${u.count} ta topshiriq — jurnalda mavzusi bilan dars yo'q`;
+        row.getCell(unassignedCol).note = `${u.count} ta topshiriq — yuborilgan kungacha jurnalda dars yo'q`;
       }
       total += u?.score ?? 0;
     }

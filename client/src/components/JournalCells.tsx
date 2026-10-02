@@ -91,7 +91,7 @@ export function AttendanceCell({ mark, onToggle, grid, row, col }: AttendanceCel
   );
 }
 
-/** Mavzu bo'yicha baholangan topshiriqlar yig'indisi (shu kunga avtomatik qo'shiladi) */
+/** Shu kunga tushgan baholangan topshiriqlar yig'indisi (shu kunga avtomatik qo'shiladi) */
 export interface TaskScore {
   score: number;
   count: number;
@@ -142,7 +142,8 @@ function overrideHint(task: TaskScore | undefined) {
  * Ball katagi — to'g'ridan-to'g'ri yoziladi. Enter / strelka / fokus chiqishi — saqlaydi,
  * Esc — bekor qiladi. Bo'sh qoldirilsa — 0. NB bo'lgan kunda darsdagi ball qo'yilmaydi.
  *
- * Katakda kunning jami bali ko'rinadi: darsdagi ball + shu mavzu bo'yicha topshiriq ballari.
+ * Katakda kunning jami bali ko'rinadi: darsdagi ball + shu kuni (yoki keyingi darsgacha) yuborilgan
+ * topshiriq ballari.
  * Topshiriq bali bor katak o'zgartirilsa — yozilgan son kunning yakuniy bali bo'ladi
  * (score_override), topshiriq bali ustiga qo'shilmaydi. Bunday katak bo'shatilsa —
  * qo'lda qo'yilgan ball olib tashlanadi va avtomatik hisob (0 + topshiriq) qaytadi.

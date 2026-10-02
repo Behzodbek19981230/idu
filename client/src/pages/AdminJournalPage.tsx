@@ -151,7 +151,7 @@ export default function AdminJournalPage() {
     return result;
   }, [journal, marks, taskScores, unassignedTasks]);
 
-  // Darsi hali jurnalda yo'q mavzular bo'yicha topshiriq ballari bo'lsa — alohida ustun
+  // Yuborilgan kungacha jurnalda dars bo'lmagan topshiriq ballari bo'lsa — alohida ustun
   const showUnassigned = Boolean(journal?.students.some((st) => unassignedTasks.has(st.id)));
 
   /** Optimistik saqlash: jadval darhol yangilanadi, xato bo'lsa — jurnal qayta yuklanadi */
@@ -386,7 +386,7 @@ export default function AdminJournalPage() {
                       <>
                         {showUnassigned && (
                           <TableCell align="center" sx={{ borderLeft: 1, borderColor: 'divider' }}>
-                            <Tooltip title="Jurnalda mavzusi belgilangan dars hali yo'q topshiriqlar bali. Shu mavzu bilan dars qo'shilsa — o'sha kunga o'tadi.">
+                            <Tooltip title="Yuborilgan kungacha jurnalda dars bo'lmagan topshiriqlar bali. O'sha sanaga yoki undan oldin dars qo'shilsa — shu darsga o'tadi.">
                               <span>Darssiz topshiriq</span>
                             </Tooltip>
                           </TableCell>
@@ -510,7 +510,7 @@ export default function AdminJournalPage() {
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
               {sheet === 'davomat'
                 ? 'Katakka bosing (yoki Space) — keldi ✓ / kelmadi NB. Strelkalar bilan kataklar bo‘ylab yuriladi.'
-                : 'Ballni to‘g‘ridan-to‘g‘ri yozing — istalgan son (masalan 0,3, 1 yoki 1,5). Yashil burchakli katak — shu mavzu bo‘yicha topshiriq ballari avtomatik qo‘shilgan (katakda kunning jami bali). Uni o‘zgartirsangiz — yozilgan son kunning yakuniy bali bo‘ladi, topshiriq bali ustiga qo‘shilmaydi (sariq burchak); katakni bo‘shatsangiz — avtomatik hisobga qaytadi. Enter — saqlab pastga, strelkalar — qo‘shni katakka, Esc — bekor qilish. Bo‘sh katak va NB kunlari 0 ball.'}{' '}
+                : 'Ballni to‘g‘ridan-to‘g‘ri yozing — istalgan son (masalan 0,3, 1 yoki 1,5). Yashil burchakli katak — shu kuni (yoki keyingi darssiz kunlarda) yuborilgan topshiriq ballari avtomatik qo‘shilgan (katakda kunning jami bali). Uni o‘zgartirsangiz — yozilgan son kunning yakuniy bali bo‘ladi, topshiriq bali ustiga qo‘shilmaydi (sariq burchak); katakni bo‘shatsangiz — avtomatik hisobga qaytadi. Enter — saqlab pastga, strelkalar — qo‘shni katakka, Esc — bekor qilish. Bo‘sh katak va NB kunlari 0 ball.'}{' '}
               Sana ustiga bosing — darsni tahrirlash yoki o'chirish.
             </Typography>
           )}
@@ -612,8 +612,8 @@ export default function AdminJournalPage() {
               />
               {!sessionDialog.id && (
                 <Typography variant="caption" color="text.secondary">
-                  Kursdagi barcha talabalar "keldi, 0 ball" deb belgilanadi. Mavzu tanlansa — shu mavzu
-                  bo'yicha topshiriq ballari shu kunga avtomatik qo'shiladi.
+                  Kursdagi barcha talabalar "keldi, 0 ball" deb belgilanadi. Shu sanada (va keyingi
+                  darsgacha) yuborilgan topshiriqlar ballari shu kunga avtomatik qo'shiladi.
                 </Typography>
               )}
             </Stack>

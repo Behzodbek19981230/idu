@@ -180,9 +180,9 @@ export interface Journal {
   students: JournalStudent[];
   sessions: ClassSession[];
   marks: AttendanceMark[];
-  /** Mavzu bo'yicha baholangan topshiriqlar — shu mavzu o'tilgan darsga qo'shiladi */
+  /** Baholangan topshiriqlar — topshiriq yuborilgan kundagi (yoki undan oldingi eng yaqin) darsga qo'shiladi */
   task_scores: { session_id: number; student_id: number; score: number; count: number }[];
-  /** Jurnalda hali darsi yo'q mavzular bo'yicha topshiriq ballari */
+  /** Yuborilgan kungacha jurnalda dars bo'lmagan topshiriqlar ballari */
   unassigned_task_scores: { student_id: number; score: number; count: number }[];
 }
 
@@ -197,7 +197,7 @@ export interface MyJournalDay {
   /** Darsdagi ball (score_override bo'lsa — kunning yakuniy bali) */
   score: number;
   score_override: boolean;
-  /** Shu mavzu bo'yicha baholangan topshiriqlar yig'indisi */
+  /** Shu kunga tushgan baholangan topshiriqlar yig'indisi */
   task_score: number | null;
   task_count: number;
 }

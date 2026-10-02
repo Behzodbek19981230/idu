@@ -9,6 +9,21 @@ export const journalRouter = Router(); // /api/journal — o'qituvchi (admin)
 
 journalRouter.use(requireAdmin);
 
+/** Topshiriq yuborilgan sana mahalliy vaqt bo'yicha olinadi */
+export const LOCAL_TZ = 'Asia/Tashkent';
+
+/**
+ * Topshiriq (sb) qaysi darsga tegishli: fan ($1) + kurs ($2) darslari ichidan topshiriq yuborilgan
+ * kundagisi, u kuni dars bo'lmasa — undan oldingi eng yaqin dars; bir kunda bir nechta bo'lsa —
+ * mavzusi mos kelgani, so'ng birinchisi. Yuborilgan kungacha umuman dars bo'lmasa — NULL.
+ */
+const SUBMISSION_SESSION_SQL = `(
+  SELECT cs.id FROM class_sessions cs
+   WHERE cs.subject_id = $1 AND cs.course = $2
+     AND cs.lesson_date <= (sb.submitted_at AT TIME ZONE '${LOCAL_TZ}')::date
+   ORDER BY cs.lesson_date DESC, (cs.topic_id IS NOT DISTINCT FROM sb.topic_id) DESC, cs.id
+   LIMIT 1)`;
+
 /** DATE ustunini vaqt mintaqasiz 'YYYY-MM-DD' ko'rinishida qaytaramiz */
 const SESSION_COLUMNS = `id, subject_id, course, to_char(lesson_date, 'YYYY-MM-DD') AS lesson_date,
   topic_id, note, created_at`;
@@ -117,34 +132,21 @@ journalRouter.get(
       [subjectId, course],
     );
 
-    // Topshiriq ballari: talabaning mavzu bo'yicha baholangan barcha topshiriqlari yig'indisi
-    // shu mavzu o'tilgan (birinchi) darsga qo'shiladi. Saqlanmaydi — har safar hisoblanadi.
-    const taskScores = await many<{ session_id: number; student_id: number; score: number; count: number }>(
-      `WITH topic_session AS (
-         SELECT DISTINCT ON (topic_id) id, topic_id
-           FROM class_sessions
-          WHERE subject_id = $1 AND course = $2 AND topic_id IS NOT NULL
-          ORDER BY topic_id, lesson_date, id
-       )
-       SELECT ts.id AS session_id, sb.student_id,
+    // Topshiriq ballari topshiriq yuborilgan kundagi (u kuni dars bo'lmasa — oldingi eng yaqin)
+    // darsga qo'shiladi. Saqlanmaydi — har safar hisoblanadi.
+    // Yuborilgan kungacha dars bo'lmasa — "darssiz topshiriq" (jami ballga baribir qo'shiladi).
+    const taskRows = await many<{ session_id: number | null; student_id: number; score: number; count: number }>(
+      `SELECT ${SUBMISSION_SESSION_SQL} AS session_id, sb.student_id,
               SUM(sb.score)::float8 AS score, COUNT(*)::int AS count
-         FROM submissions sb JOIN topic_session ts ON ts.topic_id = sb.topic_id
-        WHERE sb.status = 'graded'
-        GROUP BY ts.id, sb.student_id`,
-      [subjectId, course],
-    );
-
-    // Jurnalda hali darsi yo'q mavzular bo'yicha topshiriq ballari (jami ballga baribir qo'shiladi)
-    const unassignedTaskScores = await many<{ student_id: number; score: number; count: number }>(
-      `SELECT sb.student_id, SUM(sb.score)::float8 AS score, COUNT(*)::int AS count
          FROM submissions sb JOIN topics t ON t.id = sb.topic_id
         WHERE t.subject_id = $1 AND sb.status = 'graded'
-          AND NOT EXISTS (
-            SELECT 1 FROM class_sessions cs
-             WHERE cs.subject_id = $1 AND cs.course = $2 AND cs.topic_id = sb.topic_id)
-        GROUP BY sb.student_id`,
+        GROUP BY 1, sb.student_id`,
       [subjectId, course],
     );
+    const taskScores = taskRows.filter((r) => r.session_id !== null);
+    const unassignedTaskScores = taskRows
+      .filter((r) => r.session_id === null)
+      .map(({ student_id, score, count }) => ({ student_id, score, count }));
 
     res.json({
       subject,
