@@ -32,11 +32,11 @@ interface Props {
 
 /** Dars qo'llanmasining to'liq ko'rinishi — ham asosiy saytda, ham ulashilgan sahifada ishlatiladi */
 export default function LessonView({ topic, header, actions, footer }: Props) {
-  const objectives = topic.objectives
+  const objectives = (topic.objectives ?? '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-  const keywords = topic.keywords
+  const keywords = (topic.keywords ?? '')
     .split(',')
     .map((k) => k.trim())
     .filter(Boolean);
