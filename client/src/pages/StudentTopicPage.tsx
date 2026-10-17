@@ -23,8 +23,7 @@ import { Link as RouterLink, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import CodeRunner from '../components/CodeRunner';
 import { formatScore } from '../components/JournalCells';
-import LessonTypeChip from '../components/LessonTypeChip';
-import Markdown from '../components/Markdown';
+import LessonView from '../components/LessonView';
 import SubmissionBody from '../components/SubmissionBody';
 import {
   formatDateTime,
@@ -102,42 +101,29 @@ export default function StudentTopicPage() {
   const canSubmit = Boolean(content.trim() || file) && !sending;
 
   return (
-    <Box sx={{ maxWidth: 900 }}>
-      <Breadcrumbs sx={{ mb: 1.5 }}>
-        <Link component={RouterLink} to="/" underline="hover" color="inherit" variant="body2">
-          Fanlar
-        </Link>
-        <Link
-          component={RouterLink}
-          to={`/fan/${topic.subject_id}`}
-          underline="hover"
-          color="inherit"
-          variant="body2"
-        >
-          {topic.subject_name}
-        </Link>
-        <Typography variant="body2" color="text.primary">
-          Topshiriq
-        </Typography>
-      </Breadcrumbs>
-
-      <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-        {topic.week != null && <Chip label={`${topic.week}-hafta`} size="small" variant="outlined" />}
-        <LessonTypeChip type={topic.lesson_type} />
-      </Stack>
-      <Typography variant="h4" sx={{ mb: 3 }}>
-        {topic.title}
-      </Typography>
-
-      {topic.assignments.trim() && (
-        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
-          <Typography variant="overline" color="text.secondary">
-            Topshiriq sharti
+    <LessonView
+      topic={topic}
+      header={
+        <Breadcrumbs sx={{ mb: 1.5 }}>
+          <Link component={RouterLink} to="/" underline="hover" color="inherit" variant="body2">
+            Fanlar
+          </Link>
+          <Link
+            component={RouterLink}
+            to={`/fan/${topic.subject_id}`}
+            underline="hover"
+            color="inherit"
+            variant="body2"
+          >
+            {topic.subject_name}
+          </Link>
+          <Typography variant="body2" color="text.primary">
+            Mavzu
           </Typography>
-          <Markdown>{topic.assignments}</Markdown>
-        </Paper>
-      )}
-
+        </Breadcrumbs>
+      }
+      footer={
+    <Box sx={{ mt: 4 }}>
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 4 }}>
         <Typography variant="h6" gutterBottom>
           Topshiriq yuborish
@@ -268,7 +254,8 @@ export default function StudentTopicPage() {
           ))}
         </Stack>
       )}
-
     </Box>
+      }
+    />
   );
 }

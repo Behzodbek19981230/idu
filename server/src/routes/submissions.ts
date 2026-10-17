@@ -55,7 +55,8 @@ submissionsRouter.get(
   asyncHandler(async (req, res) => {
     const topicId = Number(req.params.topicId);
     const topic = await one<{ subject_id: number }>(
-      `SELECT t.id, t.subject_id, t.title, t.week, t.lesson_type, t.hours, t.assignments,
+      `SELECT t.id, t.subject_id, t.title, t.week, t.position, t.lesson_type, t.hours, t.summary,
+              t.keywords, t.objectives, t.content, t.assignments, t.resources,
               s.name AS subject_name, s.code AS subject_code
          FROM topics t JOIN subjects s ON s.id = t.subject_id
         WHERE t.id = $1`,

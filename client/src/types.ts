@@ -252,15 +252,8 @@ export interface SubmissionWithContext extends Submission {
   subject_code: string;
 }
 
-/** Talaba ko'radigan mavzu: dars matnisiz, faqat topshiriq sharti */
-export interface StudentTopic {
-  id: number;
-  subject_id: number;
-  title: string;
-  week: number | null;
-  lesson_type: LessonType;
-  hours: number;
-  assignments: string;
+/** Talaba ko'radigan mavzu: dars matni va topshiriq sharti */
+export interface StudentTopic extends Topic {
   subject_name: string;
   subject_code: string;
 }
