@@ -106,7 +106,11 @@ journalRouter.get(
     );
     if (!subject) throw new HttpError(404, 'Fan topilmadi');
 
-    const course = req.query.course ? Number(req.query.course) : (subject.courses[0] ?? null);
+    const normalizedSubject = {
+      ...subject,
+      courses: Array.isArray(subject.courses) ? subject.courses : [],
+    };
+    const course = req.query.course ? Number(req.query.course) : (normalizedSubject.courses[0] ?? null);
     if (course === null) {
       res.json({
         subject,
@@ -121,7 +125,7 @@ journalRouter.get(
       });
       return;
     }
-    if (!subject.courses.includes(course)) {
+    if (!normalizedSubject.courses.includes(course)) {
       throw new HttpError(400, `Fan ${course}-kursga biriktirilmagan`);
     }
 
@@ -187,7 +191,7 @@ journalRouter.get(
       .map(({ student_id, score, count }) => ({ student_id, score, count }));
 
     res.json({
-      subject,
+      subject: normalizedSubject,
       course,
       groups,
       group_id: groupId,
