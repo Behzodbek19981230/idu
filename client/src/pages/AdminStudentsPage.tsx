@@ -145,7 +145,7 @@ export default function AdminStudentsPage() {
           placeholder="Ism, familiya yoki login…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          sx={{ minWidth: 260 }}
+          sx={{ minWidth: { sm: 260 } }}
         />
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
           <Chip

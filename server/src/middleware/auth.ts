@@ -7,12 +7,14 @@ import { asyncHandler, HttpError } from './error.js';
 /** Tokenga yoziladigan ma'lumot */
 export type AuthPayload =
   | { role: 'admin'; login: string }
+  | { role: 'teacher'; id: number; login: string }
   | { role: 'student'; id: number; login: string };
 
 /** So'rov davomida mavjud foydalanuvchi. Talabaning kursi har safar bazadan olinadi —
  *  admin kursni o'zgartirsa yoki talabani o'chirsa, darhol kuchga kiradi. */
 export type AuthUser =
   | { role: 'admin'; login: string }
+  | { role: 'teacher'; id: number; login: string; first_name: string; last_name: string }
   | {
       role: 'student';
       id: number;
@@ -48,6 +50,14 @@ function readToken(req: Request): AuthPayload {
 
 async function resolveUser(payload: AuthPayload): Promise<AuthUser> {
   if (payload.role === 'admin') return { role: 'admin', login: payload.login };
+  if (payload.role === 'teacher') {
+    const teacher = await one<{ id: number; login: string; first_name: string; last_name: string }>(
+      'SELECT id, login, first_name, last_name FROM teachers WHERE id = $1',
+      [payload.id],
+    );
+    if (!teacher) throw new HttpError(401, 'Foydalanuvchi topilmadi');
+    return { role: 'teacher', ...teacher };
+  }
   const student = await one<Omit<Extract<AuthUser, { role: 'student' }>, 'role'>>(
     'SELECT id, login, first_name, last_name, course FROM students WHERE id = $1',
     [payload.id],
@@ -75,9 +85,28 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+/** Admin yoki o'qituvchi (jurnal, mavzularni tahrirlash) */
+export const requireStaff = asyncHandler(async (req, _res, next) => {
+  const user = await resolveUser(readToken(req));
+  if (user.role === 'student') throw new HttpError(403, 'Faqat admin yoki o‘qituvchi uchun');
+  req.user = user;
+  next();
+});
+
+/** O'qituvchi faqat o'z fanlari bilan ishlaydi; admin — hammasi bilan */
+export async function assertStaffSubject(user: AuthUser, subjectId: number): Promise<void> {
+  if (user.role !== 'teacher') return;
+  const row = await one('SELECT 1 FROM subjects WHERE id = $1 AND teacher_id = $2', [
+    subjectId,
+    user.id,
+  ]);
+  if (!row) throw new HttpError(403, 'Bu fan sizga biriktirilmagan');
+}
+
 /** Talaba uchun: fan uning kursiga biriktirilganmi. Admin hamma fanni ko'radi. */
 export async function assertSubjectAccess(user: AuthUser, subjectId: number): Promise<void> {
   if (user.role === 'admin') return;
+  if (user.role === 'teacher') return assertStaffSubject(user, subjectId);
   const row = await one(
     'SELECT 1 FROM subject_courses WHERE subject_id = $1 AND course = $2',
     [subjectId, user.course],

@@ -271,6 +271,7 @@ export default function SharePage() {
 
   const drawerPaperSx = {
     width: DRAWER_WIDTH,
+    maxWidth: '85vw',
     boxSizing: 'border-box' as const,
     borderRight: 1,
     borderColor: 'divider',

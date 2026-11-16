@@ -20,7 +20,7 @@ export default function LoginPage() {
     setError('');
     try {
       const user = await login(form.login, form.password);
-      navigate(from ?? (user.role === 'admin' ? '/admin' : '/'), { replace: true });
+      navigate(from ?? (user.role === 'student' ? '/' : '/admin'), { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {

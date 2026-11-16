@@ -74,7 +74,7 @@ export default function LessonView({ topic, header, actions, footer }: Props) {
             </Stack>
           </Box>
           {actions && (
-            <Stack direction="row" spacing={1} sx={{ flexShrink: 0, displayPrint: 'none' }}>
+            <Stack direction="row" sx={{ flexShrink: 0, flexWrap: 'wrap', gap: 1, displayPrint: 'none' }}>
               {actions}
             </Stack>
           )}

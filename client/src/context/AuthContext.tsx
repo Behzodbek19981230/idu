@@ -35,6 +35,8 @@ function storeUser(user: AuthUser | null) {
 interface AuthState {
   user: AuthUser | null;
   isAdmin: boolean;
+  /** admin yoki o'qituvchi */
+  isStaff: boolean;
   isStudent: boolean;
   login: (login: string, password: string) => Promise<AuthUser>;
   register: (data: RegisterInput) => Promise<AuthUser>;
@@ -110,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isAdmin: user?.role === 'admin',
+      isStaff: user?.role === 'admin' || user?.role === 'teacher',
       isStudent: user?.role === 'student',
       login,
       register,

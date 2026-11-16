@@ -47,7 +47,7 @@ export default function Layout() {
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const { subjectId, topicId } = useCurrentIds();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, isStaff, logout } = useAuth();
   const { mode, toggle } = useColorMode();
   const navigate = useNavigate();
 
@@ -61,6 +61,7 @@ export default function Layout() {
 
   const drawerPaperSx = {
     width: DRAWER_WIDTH,
+    maxWidth: '85vw',
     boxSizing: 'border-box' as const,
     borderRight: 1,
     borderColor: 'divider',
@@ -81,7 +82,7 @@ export default function Layout() {
           displayPrint: 'none',
         }}
       >
-        <Toolbar sx={{ gap: 1 }}>
+        <Toolbar sx={{ gap: 1, px: { xs: 1, sm: 3 } }}>
           <IconButton
             edge="start"
             onClick={() => setMobileOpen(true)}
@@ -94,9 +95,15 @@ export default function Layout() {
             variant="subtitle1"
             component={RouterLink}
             to="/"
-            sx={{ flexGrow: 1, color: 'text.primary', textDecoration: 'none', fontWeight: 600 }}
+            noWrap
+            sx={{ flexGrow: 1, minWidth: 0, color: 'text.primary', textDecoration: 'none', fontWeight: 600 }}
           >
-            O'quv jarayoni platformasi
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+              O'quv jarayoni platformasi
+            </Box>
+            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+              O'quv platformasi
+            </Box>
           </Typography>
 
           <Stack direction="row" spacing={0.5} alignItems="center">
@@ -113,14 +120,17 @@ export default function Layout() {
             {/* Adminka tugmasi faqat admin uchun; talaba /admin ni ochsa — bosh sahifaga qaytadi */}
             {isAdmin && <NotificationBell />}
 
-            {isAdmin && (
+            {isStaff && (
               <Button
                 size="small"
                 startIcon={<SettingsOutlinedIcon />}
                 component={RouterLink}
                 to="/admin"
+                sx={{ minWidth: 0, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 }, ml: { xs: 0, sm: -0.5 } } }}
               >
-                Adminka
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                  Adminka
+                </Box>
               </Button>
             )}
 

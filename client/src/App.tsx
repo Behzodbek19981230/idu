@@ -23,10 +23,18 @@ function ToLogin() {
   return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
 }
 
-function RequireAdmin({ children }: { children: React.ReactNode }) {
+/** Faqat admin (o'qituvchi uchun emas) */
+function RequireAdminOnly({ children }: { children: React.ReactNode }) {
   const { user, isAdmin } = useAuth();
   if (!user) return <ToLogin />;
-  return isAdmin ? <>{children}</> : <Navigate to="/" replace />;
+  return isAdmin ? <>{children}</> : <Navigate to="/admin" replace />;
+}
+
+/** Admin yoki o'qituvchi */
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { user, isStaff } = useAuth();
+  if (!user) return <ToLogin />;
+  return isStaff ? <>{children}</> : <Navigate to="/" replace />;
 }
 
 /** Fanlar va mavzular faqat tizimga kirgan admin/talaba uchun */
@@ -37,8 +45,8 @@ function RequireUser({ children }: { children: React.ReactNode }) {
 
 /** Mavzu: admin — to'liq dars qo'llanmasi, talaba — faqat topshiriq yuborish */
 function TopicRoute() {
-  const { isAdmin } = useAuth();
-  return isAdmin ? <LessonPage /> : <StudentTopicPage />;
+  const { isStaff } = useAuth();
+  return isStaff ? <LessonPage /> : <StudentTopicPage />;
 }
 
 /** Kirgan foydalanuvchi login/register sahifasini ochsa — o'z bosh sahifasiga */
@@ -46,7 +54,7 @@ function GuestOnly({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const from = (useLocation().state as { from?: string } | null)?.from;
   if (!user) return <>{children}</>;
-  return <Navigate to={from ?? (user.role === 'admin' ? '/admin' : '/')} replace />;
+  return <Navigate to={from ?? (user.role === 'student' ? '/' : '/admin')} replace />;
 }
 
 export default function App() {
@@ -97,33 +105,33 @@ export default function App() {
         <Route
           path="/admin/talabalar"
           element={
-            <RequireAdmin>
+            <RequireAdminOnly>
               <AdminStudentsPage />
-            </RequireAdmin>
+            </RequireAdminOnly>
           }
         />
         <Route
           path="/admin/topshiriqlar"
           element={
-            <RequireAdmin>
+            <RequireAdminOnly>
               <AdminSubmissionsPage />
-            </RequireAdmin>
+            </RequireAdminOnly>
           }
         />
         <Route
           path="/admin/topshiriqlar/:submissionId"
           element={
-            <RequireAdmin>
+            <RequireAdminOnly>
               <AdminSubmissionPage />
-            </RequireAdmin>
+            </RequireAdminOnly>
           }
         />
         <Route
           path="/admin/havolalar"
           element={
-            <RequireAdmin>
+            <RequireAdminOnly>
               <AdminSharesPage />
-            </RequireAdmin>
+            </RequireAdminOnly>
           }
         />
         <Route

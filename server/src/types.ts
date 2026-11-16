@@ -55,6 +55,7 @@ export interface Student {
   last_name: string;
   login: string;
   course: number;
+  group_id?: number | null;
   created_at: string;
 }
 
@@ -65,6 +66,7 @@ export interface ClassSession {
   lesson_date: string;
   topic_id: number | null;
   note: string;
+  group_id: number | null;
   created_at: string;
 }
 

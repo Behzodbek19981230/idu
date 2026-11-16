@@ -25,7 +25,7 @@ import type { Topic, TopicListItem } from '../types';
 export default function LessonPage() {
   const { subjectId, topicId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isStaff } = useAuth();
   const [topic, setTopic] = useState<Topic | null>(null);
   const [siblings, setSiblings] = useState<TopicListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,15 +88,17 @@ export default function LessonPage() {
       actions={
         <>
           {isAdmin && (
+            <Button
+              size="small"
+              startIcon={<ShareIcon />}
+              variant="contained"
+              onClick={() => setShareOpen(true)}
+            >
+              Ulashish
+            </Button>
+          )}
+          {isStaff && (
             <>
-              <Button
-                size="small"
-                startIcon={<ShareIcon />}
-                variant="contained"
-                onClick={() => setShareOpen(true)}
-              >
-                Ulashish
-              </Button>
               <Button
                 size="small"
                 startIcon={<EditIcon />}

@@ -72,10 +72,11 @@ subjectsRouter.get(
              FROM topics GROUP BY subject_id
          ) t ON t.subject_id = s.id
          ${COURSES_JOIN}
-        WHERE $1::int IS NULL
-           OR EXISTS (SELECT 1 FROM subject_courses sc WHERE sc.subject_id = s.id AND sc.course = $1)
+        WHERE ($1::int IS NULL
+           OR EXISTS (SELECT 1 FROM subject_courses sc WHERE sc.subject_id = s.id AND sc.course = $1))
+          AND ($2::int IS NULL OR s.teacher_id = $2)
         ORDER BY s.position, s.name`,
-      [courseFilter(req.user)],
+      [courseFilter(req.user), req.user?.role === 'teacher' ? req.user.id : null],
     );
     res.json(rows);
   }),

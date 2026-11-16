@@ -161,3 +161,30 @@ CREATE TABLE IF NOT EXISTS submissions (
 
 CREATE INDEX IF NOT EXISTS submissions_topic_student_idx ON submissions (topic_id, student_id);
 CREATE INDEX IF NOT EXISTS submissions_unseen_idx ON submissions (submitted_at) WHERE seen_at IS NULL;
+
+-- O'qituvchilar (admin .env dagi akkaunt bilan birga alohida rol)
+CREATE TABLE IF NOT EXISTS teachers (
+  id             SERIAL PRIMARY KEY,
+  first_name     TEXT NOT NULL,
+  last_name      TEXT NOT NULL,
+  login          TEXT NOT NULL UNIQUE,
+  password_hash  TEXT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Guruhlar (masalan 3-26): har biri bitta kursga tegishli
+CREATE TABLE IF NOT EXISTS groups (
+  id          SERIAL PRIMARY KEY,
+  name        TEXT NOT NULL UNIQUE,
+  course      INTEGER NOT NULL CHECK (course BETWEEN 1 AND 4),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Talaba guruhi (ixtiyoriy), fan o'qituvchisi (ixtiyoriy), dars guruhi (NULL — kursdagi hamma guruh)
+ALTER TABLE students ADD COLUMN IF NOT EXISTS group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS teacher_id INTEGER REFERENCES teachers(id) ON DELETE SET NULL;
+ALTER TABLE class_sessions ADD COLUMN IF NOT EXISTS group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS students_group_idx ON students (group_id);
+CREATE INDEX IF NOT EXISTS subjects_teacher_idx ON subjects (teacher_id);
+CREATE INDEX IF NOT EXISTS class_sessions_group_idx ON class_sessions (group_id);

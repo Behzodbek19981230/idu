@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { many, one, pool, query } from '../db/pool.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { assertStaffSubject, requireStaff } from '../middleware/auth.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import type { AttendanceMark, ClassSession, Student, Subject } from '../types.js';
 
-export const journalRouter = Router(); // /api/journal — o'qituvchi (admin)
+export const journalRouter = Router(); // /api/journal — o'qituvchi (o'z fanlari) va admin
 
-journalRouter.use(requireAdmin);
+journalRouter.use(requireStaff);
 
 /** Topshiriq yuborilgan sana mahalliy vaqt bo'yicha olinadi */
 export const LOCAL_TZ = 'Asia/Tashkent';
@@ -20,13 +20,15 @@ export const LOCAL_TZ = 'Asia/Tashkent';
 const SUBMISSION_SESSION_SQL = `(
   SELECT cs.id FROM class_sessions cs
    WHERE cs.subject_id = $1 AND cs.course = $2
+     AND (cs.group_id IS NULL
+          OR cs.group_id IS NOT DISTINCT FROM (SELECT st.group_id FROM students st WHERE st.id = sb.student_id))
      AND cs.lesson_date <= (sb.submitted_at AT TIME ZONE '${LOCAL_TZ}')::date
    ORDER BY cs.lesson_date DESC, (cs.topic_id IS NOT DISTINCT FROM sb.topic_id) DESC, cs.id
    LIMIT 1)`;
 
 /** DATE ustunini vaqt mintaqasiz 'YYYY-MM-DD' ko'rinishida qaytaramiz */
 const SESSION_COLUMNS = `id, subject_id, course, to_char(lesson_date, 'YYYY-MM-DD') AS lesson_date,
-  topic_id, note, created_at`;
+  topic_id, note, group_id, created_at`;
 
 /** Ball: istalgan manfiy bo'lmagan son (0.3, 1.5, 2 …); bazada 2 kasr xonagacha saqlanadi */
 const scoreSchema = z.coerce
@@ -40,6 +42,13 @@ const sessionSchema = z.object({
   note: z.string().default(''),
 });
 
+/** Darsning guruhi: shu kursdagi guruh bo'lishi kerak */
+async function assertGroupOfCourse(groupId: number | null | undefined, course: number) {
+  if (!groupId) return;
+  const row = await one('SELECT 1 FROM groups WHERE id = $1 AND course = $2', [groupId, course]);
+  if (!row) throw new HttpError(400, `Guruh ${course}-kursga tegishli emas`);
+}
+
 const marksSchema = z.object({
   marks: z
     .array(
@@ -52,6 +61,15 @@ const marksSchema = z.object({
     )
     .min(1),
 });
+
+async function assertSessionOwner(user: NonNullable<Express.Request['user']>, sessionId: number) {
+  const session = await one<{ subject_id: number }>(
+    'SELECT subject_id FROM class_sessions WHERE id = $1',
+    [sessionId],
+  );
+  if (!session) throw new HttpError(404, 'Dars topilmadi');
+  await assertStaffSubject(user, session.subject_id);
+}
 
 async function assertCourseAttached(subjectId: number, course: number) {
   const row = await one('SELECT 1 FROM subject_courses WHERE subject_id = $1 AND course = $2', [
@@ -78,6 +96,7 @@ journalRouter.get(
   '/:subjectId',
   asyncHandler(async (req, res) => {
     const subjectId = Number(req.params.subjectId);
+    await assertStaffSubject(req.user!, subjectId);
     const subject = await one<Subject & { courses: number[] }>(
       `SELECT s.*, COALESCE(
                 (SELECT array_agg(course ORDER BY course) FROM subject_courses WHERE subject_id = s.id),
@@ -92,6 +111,8 @@ journalRouter.get(
       res.json({
         subject,
         course: null,
+        groups: [],
+        group_id: null,
         students: [],
         sessions: [],
         marks: [],
@@ -104,32 +125,49 @@ journalRouter.get(
       throw new HttpError(400, `Fan ${course}-kursga biriktirilmagan`);
     }
 
+    // Guruhlar: ?guruh=ID yoki ?guruh=all. Berilmasa — kursda guruh bo'lsa birinchisi, bo'lmasa hammasi
+    const groups = await many<{ id: number; name: string; course: number }>(
+      'SELECT id, name, course FROM groups WHERE course = $1 ORDER BY name',
+      [course],
+    );
+    const groupParam = req.query.guruh;
+    let groupId: number | null;
+    if (groupParam === 'all') groupId = null;
+    else if (groupParam) {
+      groupId = Number(groupParam);
+      if (!groups.some((g) => g.id === groupId)) throw new HttpError(400, 'Guruh topilmadi');
+    } else groupId = groups[0]?.id ?? null;
+
+    // Tanlangan guruhning darslari + butun kursga umumiy (guruhsiz) darslar
     const sessions = await many<ClassSession & { topic_title: string | null }>(
       `SELECT cs.id, cs.subject_id, cs.course, to_char(cs.lesson_date, 'YYYY-MM-DD') AS lesson_date,
-              cs.topic_id, cs.note, cs.created_at, t.title AS topic_title
+              cs.topic_id, cs.note, cs.group_id, cs.created_at, t.title AS topic_title
          FROM class_sessions cs
          LEFT JOIN topics t ON t.id = cs.topic_id
         WHERE cs.subject_id = $1 AND cs.course = $2
+          AND ($3::int IS NULL OR cs.group_id IS NULL OR cs.group_id = $3)
         ORDER BY cs.lesson_date, cs.id`,
-      [subjectId, course],
+      [subjectId, course, groupId],
     );
 
     const students = await many<Omit<Student, 'created_at'>>(
-      `SELECT id, first_name, last_name, login, course
+      `SELECT id, first_name, last_name, login, course, group_id
          FROM students st
-        WHERE st.course = $2
+        WHERE ($3::int IS NULL OR st.group_id = $3)
+          AND (st.course = $2
            OR EXISTS (
              SELECT 1 FROM attendance a JOIN class_sessions cs ON cs.id = a.session_id
-              WHERE a.student_id = st.id AND cs.subject_id = $1 AND cs.course = $2)
+              WHERE a.student_id = st.id AND cs.subject_id = $1 AND cs.course = $2))
         ORDER BY last_name, first_name`,
-      [subjectId, course],
+      [subjectId, course, groupId],
     );
 
     const marks = await many<AttendanceMark>(
       `SELECT a.session_id, a.student_id, a.present, a.score::float8 AS score, a.score_override
          FROM attendance a JOIN class_sessions cs ON cs.id = a.session_id
-        WHERE cs.subject_id = $1 AND cs.course = $2`,
-      [subjectId, course],
+        WHERE cs.subject_id = $1 AND cs.course = $2
+          AND ($3::int IS NULL OR cs.group_id IS NULL OR cs.group_id = $3)`,
+      [subjectId, course, groupId],
     );
 
     // Topshiriq ballari topshiriq yuborilgan kundagi (u kuni dars bo'lmasa — oldingi eng yaqin)
@@ -151,6 +189,8 @@ journalRouter.get(
     res.json({
       subject,
       course,
+      groups,
+      group_id: groupId,
       students,
       sessions,
       marks,
@@ -166,23 +206,28 @@ journalRouter.post(
   asyncHandler(async (req, res) => {
     const subjectId = Number(req.params.subjectId);
     const data = sessionSchema
-      .extend({ course: z.coerce.number().int().min(1).max(4) })
+      .extend({
+        course: z.coerce.number().int().min(1).max(4),
+        group_id: z.coerce.number().int().positive().nullable().optional(),
+      })
       .parse(req.body);
+    await assertStaffSubject(req.user!, subjectId);
     await assertCourseAttached(subjectId, data.course);
+    await assertGroupOfCourse(data.group_id, data.course);
     await assertTopicOfSubject(data.topic_id, subjectId);
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const { rows } = await client.query<ClassSession>(
-        `INSERT INTO class_sessions (subject_id, course, lesson_date, topic_id, note)
-         VALUES ($1,$2,$3,$4,$5) RETURNING ${SESSION_COLUMNS}`,
-        [subjectId, data.course, data.lesson_date, data.topic_id ?? null, data.note],
+        `INSERT INTO class_sessions (subject_id, course, lesson_date, topic_id, note, group_id)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING ${SESSION_COLUMNS}`,
+        [subjectId, data.course, data.lesson_date, data.topic_id ?? null, data.note, data.group_id ?? null],
       );
       await client.query(
         `INSERT INTO attendance (session_id, student_id)
-         SELECT $1, id FROM students WHERE course = $2`,
-        [rows[0].id, data.course],
+         SELECT $1, id FROM students WHERE course = $2 AND ($3::int IS NULL OR group_id = $3)`,
+        [rows[0].id, data.course, data.group_id ?? null],
       );
       await client.query('COMMIT');
       res.status(201).json(rows[0]);
@@ -204,6 +249,7 @@ journalRouter.put(
       id,
     ]);
     if (!current) throw new HttpError(404, 'Dars topilmadi');
+    await assertStaffSubject(req.user!, current.subject_id);
     await assertTopicOfSubject(data.topic_id, current.subject_id);
 
     const row = await one<ClassSession>(
@@ -218,6 +264,7 @@ journalRouter.put(
 journalRouter.delete(
   '/sessions/:id',
   asyncHandler(async (req, res) => {
+    await assertSessionOwner(req.user!, Number(req.params.id));
     const result = await query('DELETE FROM class_sessions WHERE id = $1', [Number(req.params.id)]);
     if (result.rowCount === 0) throw new HttpError(404, 'Dars topilmadi');
     res.status(204).end();
@@ -230,8 +277,7 @@ journalRouter.put(
   asyncHandler(async (req, res) => {
     const sessionId = Number(req.params.id);
     const { marks } = marksSchema.parse(req.body);
-    const session = await one('SELECT id FROM class_sessions WHERE id = $1', [sessionId]);
-    if (!session) throw new HttpError(404, 'Dars topilmadi');
+    await assertSessionOwner(req.user!, sessionId);
 
     const client = await pool.connect();
     try {

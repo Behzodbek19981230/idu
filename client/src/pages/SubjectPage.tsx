@@ -36,7 +36,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 export default function SubjectPage() {
   const { subjectId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin, isStudent } = useAuth();
+  const { isAdmin, isStaff, isStudent } = useAuth();
   const [subject, setSubject] = useState<SubjectWithTopics | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,12 @@ export default function SubjectPage() {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'stretch', sm: 'flex-start' }}
+        spacing={2}
+      >
         <Box>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
             <Chip label={subject.code} size="small" color="primary" variant="outlined" />
@@ -79,7 +84,7 @@ export default function SubjectPage() {
             {subject.name}
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1} sx={{ flexShrink: 0, displayPrint: 'none' }}>
+        <Stack direction="row" sx={{ flexShrink: 0, flexWrap: 'wrap', gap: 1, displayPrint: 'none' }}>
           {isAdmin && (
             <Button
               startIcon={<ShareIcon />}
@@ -141,7 +146,7 @@ export default function SubjectPage() {
       )}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-        {isAdmin
+        {isStaff
           ? "Mavzu ustiga bosing — to'liq dars qo'llanmasi ochiladi."
           : "Mavzu ustiga bosing — topshiriq sharti ochiladi va javobingizni yuborasiz."}
       </Typography>

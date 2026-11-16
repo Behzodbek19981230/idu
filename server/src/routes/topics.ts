@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { many, one, pool, query } from '../db/pool.js';
-import { assertSubjectAccess, courseFilter, requireAdmin, requireUser } from '../middleware/auth.js';
+import { assertStaffSubject, assertSubjectAccess, courseFilter, requireStaff, requireUser } from '../middleware/auth.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import type { Topic } from '../types.js';
 
@@ -54,7 +54,7 @@ topicsRouter.get(
  *  (/api/submissions/topic/:id), dars matnini ko'rmaydi. */
 topicsRouter.get(
   '/:id',
-  requireAdmin,
+  requireStaff,
   asyncHandler(async (req, res) => {
     const row = await one<Topic>(
       `SELECT t.*, s.name AS subject_name, s.code AS subject_code
@@ -63,15 +63,17 @@ topicsRouter.get(
       [Number(req.params.id)],
     );
     if (!row) throw new HttpError(404, 'Mavzu topilmadi');
+    await assertStaffSubject(req.user!, row.subject_id);
     res.json(row);
   }),
 );
 
 topicsRouter.post(
   '/',
-  requireAdmin,
+  requireStaff,
   asyncHandler(async (req, res) => {
     const data = topicSchema.parse(req.body);
+    await assertStaffSubject(req.user!, data.subject_id);
 
     // position berilmagan bo'lsa — fan ichida oxiriga qo'shiladi
     let position = data.position;
@@ -107,12 +109,14 @@ topicsRouter.post(
 
 topicsRouter.put(
   '/:id',
-  requireAdmin,
+  requireStaff,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const data = topicSchema.parse(req.body);
-    const current = await one<Topic>('SELECT position FROM topics WHERE id = $1', [id]);
+    const current = await one<Topic>('SELECT position, subject_id FROM topics WHERE id = $1', [id]);
     if (!current) throw new HttpError(404, 'Mavzu topilmadi');
+    await assertStaffSubject(req.user!, current.subject_id);
+    await assertStaffSubject(req.user!, data.subject_id);
 
     const row = await one<Topic>(
       `UPDATE topics SET subject_id=$1, title=$2, week=$3, position=$4, lesson_type=$5, hours=$6,
@@ -140,8 +144,12 @@ topicsRouter.put(
 
 topicsRouter.delete(
   '/:id',
-  requireAdmin,
+  requireStaff,
   asyncHandler(async (req, res) => {
+    const owner = await one<{ subject_id: number }>('SELECT subject_id FROM topics WHERE id = $1', [
+      Number(req.params.id),
+    ]);
+    if (owner) await assertStaffSubject(req.user!, owner.subject_id);
     const result = await query('DELETE FROM topics WHERE id = $1', [Number(req.params.id)]);
     if (result.rowCount === 0) throw new HttpError(404, 'Mavzu topilmadi');
     res.status(204).end();
@@ -151,9 +159,10 @@ topicsRouter.delete(
 /** Mavzular tartibini o'zgartirish: { ids: [3, 1, 2] } */
 topicsRouter.put(
   '/reorder/:subjectId',
-  requireAdmin,
+  requireStaff,
   asyncHandler(async (req, res) => {
     const subjectId = Number(req.params.subjectId);
+    await assertStaffSubject(req.user!, subjectId);
     const { ids } = z.object({ ids: z.array(z.coerce.number().int()) }).parse(req.body);
 
     const client = await pool.connect();

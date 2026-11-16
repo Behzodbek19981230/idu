@@ -149,8 +149,13 @@ export const api = {
     request<Topic>(`/topics/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTopic: (id: number) => request<void>(`/topics/${id}`, { method: 'DELETE' }),
   // ── Jurnal: davomat va baholar (o'qituvchi) ──
-  getJournal: (subjectId: number, course?: number | null) =>
-    request<Journal>(`/journal/${subjectId}${course ? `?course=${course}` : ''}`),
+  getJournal: (subjectId: number, course?: number | null, group?: string | null) => {
+    const q = new URLSearchParams();
+    if (course) q.set('course', String(course));
+    if (group) q.set('guruh', group);
+    const qs = q.toString();
+    return request<Journal>(`/journal/${subjectId}${qs ? `?${qs}` : ''}`);
+  },
   createSession: (subjectId: number, data: ClassSessionInput & { course: number }) =>
     request<ClassSession>(`/journal/${subjectId}/sessions`, {
       method: 'POST',

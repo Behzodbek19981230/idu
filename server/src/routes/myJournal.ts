@@ -38,6 +38,8 @@ myJournalRouter.get(
       `WITH my_sessions AS (
          SELECT cs.* FROM class_sessions cs
           WHERE cs.subject_id = $1
+            AND (cs.group_id IS NULL
+                 OR cs.group_id IS NOT DISTINCT FROM (SELECT group_id FROM students WHERE id = $2))
             AND (cs.course = $3 OR EXISTS (
                   SELECT 1 FROM attendance a WHERE a.session_id = cs.id AND a.student_id = $2))
        ),

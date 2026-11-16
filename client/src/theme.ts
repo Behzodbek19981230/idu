@@ -23,8 +23,8 @@ export function buildTheme(mode: PaletteMode): Theme {
     palette: { mode, ...palette },
     typography: {
       fontFamily: "'Inter', 'Roboto', 'Helvetica', sans-serif",
-      h4: { fontWeight: 700, letterSpacing: '-0.02em' },
-      h5: { fontWeight: 700, letterSpacing: '-0.01em' },
+      h4: { fontWeight: 700, letterSpacing: '-0.02em', fontSize: '1.6rem', '@media (min-width:600px)': { fontSize: '2.125rem' } },
+      h5: { fontWeight: 700, letterSpacing: '-0.01em', fontSize: '1.3rem', '@media (min-width:600px)': { fontSize: '1.5rem' } },
       h6: { fontWeight: 600 },
       subtitle1: { fontWeight: 600 },
       button: { fontWeight: 500 },
@@ -49,6 +49,7 @@ export function buildTheme(mode: PaletteMode): Theme {
         defaultProps: { disableElevation: true },
         styleOverrides: { root: { textTransform: 'none', borderRadius: 8 } },
       },
+      MuiDialog: { styleOverrides: { paper: { margin: 12 } } },
       MuiAppBar: { defaultProps: { elevation: 0, color: 'default' } },
       MuiChip: { styleOverrides: { root: { fontWeight: 500 } } },
       MuiListItemButton: {

@@ -17,6 +17,14 @@ interface StudentRow {
   password_hash: string;
 }
 
+interface TeacherRow {
+  id: number;
+  login: string;
+  first_name: string;
+  last_name: string;
+  password_hash: string;
+}
+
 const loginSchema = z.object({
   login: z.string().min(1, 'login kiritilmagan'),
   password: z.string().min(1, 'parol kiritilmagan'),
@@ -61,7 +69,10 @@ authRouter.post(
     if (data.login === env.adminLogin.toLowerCase()) {
       throw new HttpError(409, 'Bu login band');
     }
-    const exists = await one('SELECT 1 FROM students WHERE login = $1', [data.login]);
+    const exists = await one(
+      'SELECT 1 FROM students WHERE login = $1 UNION ALL SELECT 1 FROM teachers WHERE login = $1',
+      [data.login],
+    );
     if (exists) throw new HttpError(409, 'Bu login band');
 
     const hash = await bcrypt.hash(data.password, 10);
@@ -83,6 +94,26 @@ authRouter.post(
       res.json({
         token: signToken({ role: 'admin', login }),
         user: { role: 'admin', login } satisfies AuthUser,
+      });
+      return;
+    }
+
+    const teacher = await one<TeacherRow>('SELECT * FROM teachers WHERE login = $1', [
+      login.trim().toLowerCase(),
+    ]);
+    if (teacher) {
+      if (!(await bcrypt.compare(password, teacher.password_hash))) {
+        throw new HttpError(401, 'Login yoki parol xato');
+      }
+      res.json({
+        token: signToken({ role: 'teacher', id: teacher.id, login: teacher.login }),
+        user: {
+          role: 'teacher',
+          id: teacher.id,
+          login: teacher.login,
+          first_name: teacher.first_name,
+          last_name: teacher.last_name,
+        } satisfies AuthUser,
       });
       return;
     }

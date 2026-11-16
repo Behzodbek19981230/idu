@@ -91,7 +91,13 @@ export default function AdminTopicsPage() {
         </Typography>
       </Breadcrumbs>
 
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        spacing={1.5}
+        sx={{ mb: 3 }}
+      >
         <Box>
           <Typography variant="h4">{subject.name}</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -99,7 +105,7 @@ export default function AdminTopicsPage() {
             {topics.reduce((sum, t) => sum + t.hours, 0)} soat
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
           <Button
             variant="outlined"
             startIcon={<FactCheckOutlinedIcon />}

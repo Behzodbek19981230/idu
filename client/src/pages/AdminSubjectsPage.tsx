@@ -37,6 +37,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import ShareDialog from '../components/ShareDialog';
 import { COURSES, type Subject, type SubjectInput } from '../types';
 
@@ -55,6 +56,7 @@ const emptySubject: SubjectInput = {
 
 export default function AdminSubjectsPage() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -130,9 +132,16 @@ export default function AdminSubjectsPage() {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        spacing={1.5}
+        sx={{ mb: 3 }}
+      >
         <Typography variant="h4">Fanlar boshqaruvi</Typography>
-        <Stack direction="row" spacing={1}>
+        {isAdmin && (
+        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
           <Button
             variant="outlined"
             startIcon={<AssignmentTurnedInOutlinedIcon />}
@@ -158,6 +167,7 @@ export default function AdminSubjectsPage() {
             Fan qo'shish
           </Button>
         </Stack>
+        )}
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
@@ -207,16 +217,19 @@ export default function AdminSubjectsPage() {
                         <FactCheckOutlinedIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                    {isAdmin && <>
                     <Tooltip title="Ulashish havolasi">
                       <IconButton size="small" onClick={() => setSharing(s)}>
                         <ShareIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                    </>}
                     <Tooltip title="Mavzular">
                       <IconButton size="small" onClick={() => navigate(`/admin/fan/${s.id}`)}>
                         <ListAltIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                    {isAdmin && <>
                     <Tooltip title="Tahrirlash">
                       <IconButton size="small" onClick={() => openEdit(s)}>
                         <EditIcon fontSize="small" />
@@ -227,6 +240,7 @@ export default function AdminSubjectsPage() {
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                    </>}
                   </TableCell>
                 </TableRow>
               ))}

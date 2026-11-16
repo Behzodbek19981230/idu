@@ -91,15 +91,17 @@ export default function AdminJournalPage() {
     setSearchParams(next, { replace: true });
   };
 
+  const groupParam = searchParams.get('guruh');
+
   const load = useCallback(() => {
     if (!subjectId) return;
     setLoading(true);
     api
-      .getJournal(Number(subjectId), courseParam ? Number(courseParam) : null)
+      .getJournal(Number(subjectId), courseParam ? Number(courseParam) : null, groupParam)
       .then(setJournal)
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [subjectId, courseParam]);
+  }, [subjectId, courseParam, groupParam]);
 
   useEffect(load, [load]);
 
@@ -210,7 +212,11 @@ export default function AdminJournalPage() {
     setError('');
     try {
       if (sessionDialog.id) await api.updateSession(sessionDialog.id, sessionDialog.form);
-      else await api.createSession(Number(subjectId), { ...sessionDialog.form, course: journal.course });
+      else await api.createSession(Number(subjectId), {
+          ...sessionDialog.form,
+          course: journal.course,
+          group_id: journal.group_id,
+        });
       setSessionDialog(null);
       load();
     } catch (e) {
@@ -240,7 +246,7 @@ export default function AdminJournalPage() {
   }
   if (!journal) return <Alert severity="error">{error || 'Jurnal topilmadi'}</Alert>;
 
-  const { subject, course, students, sessions } = journal;
+  const { subject, course, groups, group_id: groupId, students, sessions } = journal;
   const grid = `${sheet}-${course}`;
 
   const stickyNameSx = {
@@ -249,7 +255,13 @@ export default function AdminJournalPage() {
     bgcolor: 'background.paper',
     borderRight: 1,
     borderColor: 'divider',
-    minWidth: 200,
+    width: { xs: 130, sm: 200 },
+    minWidth: { xs: 130, sm: 200 },
+    maxWidth: { xs: 130, sm: 'none' },
+    // Uzun ism keyingi kataklar ustiga chiqib ketmasligi uchun qatorga o'raladi
+    whiteSpace: 'normal !important',
+    overflowWrap: 'anywhere',
+    px: { xs: 1, sm: 2 },
   } as const;
 
   return (
@@ -277,7 +289,7 @@ export default function AdminJournalPage() {
           </Typography>
         </Box>
         {course && (
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
             <Button
               variant="outlined"
               startIcon={exporting ? <CircularProgress size={16} /> : <FileDownloadOutlinedIcon />}
@@ -316,11 +328,37 @@ export default function AdminJournalPage() {
             spacing={1.5}
             sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
           >
-            <Tabs value={course} onChange={(_e, value: number) => setParam('kurs', String(value))}>
+            <Tabs
+              value={course}
+              onChange={(_e, value: number) => {
+                const next = new URLSearchParams(searchParams);
+                next.set('kurs', String(value));
+                next.delete('guruh');
+                setSearchParams(next, { replace: true });
+              }}
+            >
               {subject.courses.map((c) => (
                 <Tab key={c} value={c} label={`${c}-kurs`} />
               ))}
             </Tabs>
+            {groups.length > 0 && (
+              <FormControl size="small" sx={{ minWidth: 150, mb: 1 }}>
+                <InputLabel id="journal-group">Guruh</InputLabel>
+                <Select
+                  labelId="journal-group"
+                  label="Guruh"
+                  value={groupId === null ? 'all' : String(groupId)}
+                  onChange={(e) => setParam('guruh', e.target.value)}
+                >
+                  {groups.map((g) => (
+                    <MenuItem key={g.id} value={String(g.id)}>
+                      {g.name}
+                    </MenuItem>
+                  ))}
+                  <MenuItem value="all">Hammasi</MenuItem>
+                </Select>
+              </FormControl>
+            )}
             <ToggleButtonGroup
               exclusive
               size="small"
@@ -362,7 +400,7 @@ export default function AdminJournalPage() {
               >
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ ...stickyNameSx, zIndex: 3 }}>Talaba</TableCell>
+                    <TableCell sx={{ ...stickyNameSx, zIndex: 4 }}>Talaba</TableCell>
                     {sessions.map((se) => (
                       <TableCell key={se.id} align="center" sx={{ px: 0.25, borderLeft: 1, borderColor: 'divider' }}>
                         <Tooltip title={se.topic_title || se.note || ''}>
@@ -402,7 +440,7 @@ export default function AdminJournalPage() {
                     const total = totals.get(st.id) ?? { present: 0, absent: 0, score: 0 };
                     return (
                       <TableRow key={st.id} hover>
-                        <TableCell sx={{ ...stickyNameSx, zIndex: 1 }}>
+                        <TableCell sx={{ ...stickyNameSx, zIndex: 2 }}>
                           <Typography variant="body2" fontWeight={500}>
                             {row + 1}. {st.last_name} {st.first_name}
                           </Typography>
@@ -487,7 +525,7 @@ export default function AdminJournalPage() {
                 {sheet === 'davomat' && sessions.length > 0 && (
                   <TableFooter>
                     <TableRow>
-                      <TableCell sx={{ ...stickyNameSx, zIndex: 1, fontWeight: 600 }}>
+                      <TableCell sx={{ ...stickyNameSx, zIndex: 2, fontWeight: 600 }}>
                         Kelganlar
                       </TableCell>
                       {sessions.map((se) => {
@@ -563,7 +601,7 @@ export default function AdminJournalPage() {
       </Menu>
 
       <Dialog open={Boolean(sessionDialog)} onClose={() => setSessionDialog(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{sessionDialog?.id ? 'Darsni tahrirlash' : `Yangi dars — ${course}-kurs`}</DialogTitle>
+        <DialogTitle>{sessionDialog?.id ? 'Darsni tahrirlash' : `Yangi dars — ${course}-kurs${groupId ? `, ${groups.find((g) => g.id === groupId)?.name ?? ''}` : ''}`}</DialogTitle>
         {sessionDialog && (
           <DialogContent dividers>
             <Stack spacing={2} sx={{ pt: 0.5 }}>
@@ -612,7 +650,7 @@ export default function AdminJournalPage() {
               />
               {!sessionDialog.id && (
                 <Typography variant="caption" color="text.secondary">
-                  Kursdagi barcha talabalar "keldi, 0 ball" deb belgilanadi. Shu sanada (va keyingi
+                  {groupId ? 'Guruhdagi' : 'Kursdagi'} barcha talabalar "keldi, 0 ball" deb belgilanadi. Shu sanada (va keyingi
                   darsgacha) yuborilgan topshiriqlar ballari shu kunga avtomatik qo'shiladi.
                 </Typography>
               )}

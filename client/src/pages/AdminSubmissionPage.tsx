@@ -133,7 +133,7 @@ export default function AdminSubmissionPage() {
             {submission.graded_at && ` · Baholangan: ${formatDateTime(submission.graded_at)}`}
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+        <Stack direction="row" sx={{ flexShrink: 0, flexWrap: 'wrap', gap: 1 }}>
           <Button
             size="small"
             variant="outlined"

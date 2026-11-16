@@ -78,6 +78,7 @@ export const COURSES = [1, 2, 3, 4] as const;
 
 export type AuthUser =
   | { role: 'admin'; login: string }
+  | { role: 'teacher'; id: number; login: string; first_name: string; last_name: string }
   | {
       role: 'student';
       id: number;
@@ -104,6 +105,7 @@ export interface Student {
   last_name: string;
   login: string;
   course: number;
+  group_id?: number | null;
   created_at: string;
 }
 
@@ -158,6 +160,7 @@ export interface ClassSession {
 }
 
 export interface ClassSessionInput {
+  group_id?: number | null;
   lesson_date: string;
   topic_id: number | null;
   note: string;
@@ -177,6 +180,9 @@ export type JournalStudent = Omit<Student, 'created_at'>;
 export interface Journal {
   subject: Subject & { courses: number[] };
   course: number | null;
+  /** Shu kursdagi guruhlar; group_id — tanlangani (null — hammasi) */
+  groups: { id: number; name: string; course: number }[];
+  group_id: number | null;
   students: JournalStudent[];
   sessions: ClassSession[];
   marks: AttendanceMark[];
