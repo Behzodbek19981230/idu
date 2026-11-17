@@ -13,13 +13,23 @@ journalRouter.use(requireStaff);
 export const LOCAL_TZ = 'Asia/Tashkent';
 
 /**
- * Topshiriq (sb) qaysi darsga tegishli: fan ($1) + kurs ($2) darslari ichidan topshiriq yuborilgan
- * kundagisi, u kuni dars bo'lmasa — undan oldingi eng yaqin dars; bir kunda bir nechta bo'lsa —
- * mavzusi mos kelgani, so'ng birinchisi. Yuborilgan kungacha umuman dars bo'lmasa — NULL.
+ * Dars ma'ruzami: mavzusining turi bo'yicha (mavzusiz yoki mavzusi o'chirilgan dars — ma'ruza emas).
+ * Ma'ruza baholanmaydi: faqat davomat, ball qo'yilmaydi va topshiriq bali unga tushmaydi.
+ */
+export const isLectureSql = (sessionAlias: string) => `EXISTS (
+  SELECT 1 FROM topics lt
+   WHERE lt.id = ${sessionAlias}.topic_id AND lt.deleted_at IS NULL AND lt.lesson_type = 'lecture')`;
+
+/**
+ * Topshiriq (sb) qaysi darsga tegishli: fan ($1) + kurs ($2) darslari (ma'ruzalardan tashqari)
+ * ichidan topshiriq yuborilgan kundagisi, u kuni dars bo'lmasa — undan oldingi eng yaqin dars;
+ * bir kunda bir nechta bo'lsa — mavzusi mos kelgani, so'ng birinchisi.
+ * Yuborilgan kungacha umuman dars bo'lmasa — NULL.
  */
 const SUBMISSION_SESSION_SQL = `(
   SELECT cs.id FROM class_sessions cs
    WHERE cs.subject_id = $1 AND cs.course = $2 AND cs.deleted_at IS NULL
+     AND NOT ${isLectureSql('cs')}
      AND (cs.group_id IS NULL
           OR cs.group_id IS NOT DISTINCT FROM (SELECT st.group_id FROM students st WHERE st.id = sb.student_id))
      AND cs.lesson_date <= (sb.submitted_at AT TIME ZONE '${LOCAL_TZ}')::date
@@ -144,9 +154,10 @@ journalRouter.get(
     } else groupId = groups[0]?.id ?? null;
 
     // Tanlangan guruhning darslari + butun kursga umumiy (guruhsiz) darslar
-    const sessions = await many<ClassSession & { topic_title: string | null }>(
+    const sessions = await many<ClassSession & { topic_title: string | null; lesson_type: string | null }>(
       `SELECT cs.id, cs.subject_id, cs.course, to_char(cs.lesson_date, 'YYYY-MM-DD') AS lesson_date,
-              t.id AS topic_id, cs.note, cs.group_id, cs.created_at, t.title AS topic_title
+              t.id AS topic_id, cs.note, cs.group_id, cs.created_at, t.title AS topic_title,
+              t.lesson_type
          FROM class_sessions cs
          LEFT JOIN topics t ON t.id = cs.topic_id AND t.deleted_at IS NULL
         WHERE cs.subject_id = $1 AND cs.course = $2 AND cs.deleted_at IS NULL
@@ -169,8 +180,11 @@ journalRouter.get(
       [subjectId, course, groupId],
     );
 
+    // Ma'ruzada ball hisoblanmaydi (dars keyin ma'ruzaga o'zgartirilgan bo'lsa ham eski ball ko'rinmaydi)
     const marks = await many<AttendanceMark>(
-      `SELECT a.session_id, a.student_id, a.present, a.score::float8 AS score, a.score_override
+      `SELECT a.session_id, a.student_id, a.present,
+              CASE WHEN ${isLectureSql('cs')} THEN 0 ELSE a.score::float8 END AS score,
+              a.score_override AND NOT ${isLectureSql('cs')} AS score_override
          FROM attendance a
          JOIN class_sessions cs ON cs.id = a.session_id
          JOIN students st ON st.id = a.student_id AND st.deleted_at IS NULL
@@ -290,13 +304,22 @@ journalRouter.delete(
   }),
 );
 
-/** Davomat va ballarni saqlash (bitta yoki bir nechta talaba). Kelmagan talabaning bali 0 */
+/**
+ * Davomat va ballarni saqlash (bitta yoki bir nechta talaba). Kelmagan talabaning bali 0.
+ * Ma'ruza darsiga faqat davomat belgilanadi — ball qo'yib bo'lmaydi.
+ */
 journalRouter.put(
   '/sessions/:id/marks',
   asyncHandler(async (req, res) => {
     const sessionId = Number(req.params.id);
     const { marks } = marksSchema.parse(req.body);
     await assertSessionOwner(req.user!, sessionId);
+    const lecture = await one(`SELECT 1 FROM class_sessions cs WHERE cs.id = $1 AND ${isLectureSql('cs')}`, [
+      sessionId,
+    ]);
+    if (lecture && marks.some((m) => m.present && (m.score > 0 || m.score_override))) {
+      throw new HttpError(400, "Ma'ruza darsi baholanmaydi — faqat davomat belgilanadi");
+    }
 
     const client = await pool.connect();
     try {

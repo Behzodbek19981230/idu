@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import type { Journal } from '../types';
+import type { ClassSession, Journal } from '../types';
 
 /**
  * Jurnalni Excel (.xlsx) ga eksport qilish. Brauzerda yaratiladi.
@@ -7,7 +7,8 @@ import type { Journal } from '../types';
  *  - NB yoki yozuvsiz kun — darsdagi ball 0;
  *  - kunlik ball = darsdagi ball + shu kunga tushgan baholangan topshiriqlar yig'indisi
  *    (topshiriq yuborilgan kun yoki u kuni dars bo'lmasa — oldingi eng yaqin dars);
- *  - yuborilgan kungacha dars bo'lmagan topshiriqlar — "Darssiz topshiriq" ustunida.
+ *  - yuborilgan kungacha dars bo'lmagan topshiriqlar — "Darssiz topshiriq" ustunida;
+ *  - ma'ruza ustunlari boshqa rangda, baholanmaydi (faqat davomat).
  */
 
 export type ExportSheet = 'davomat' | 'baholar';
@@ -25,8 +26,26 @@ const COLORS = {
   absentText: 'FFC62828',
   presentText: 'FF2E7D32',
   taskFill: 'FFE8F5E9',
+  lectureFill: 'FFE8F0FB',
+  lectureHeaderFill: 'FFC5D9F2',
+  lectureText: 'FF1565C0',
   border: 'FFBDBDBD',
 };
+
+const isLecture = (s: ClassSession) => s.lesson_type === 'lecture';
+
+const solidFill = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } });
+
+/** Ma'ruza ustuni sarlavhasi: boshqa rang va izohda dars turi */
+function markLectureHeaders(header: ExcelJS.Row, sessions: ClassSession[], firstSession: number) {
+  sessions.forEach((s, i) => {
+    if (!isLecture(s)) return;
+    const cell = header.getCell(firstSession + i);
+    cell.fill = solidFill(COLORS.lectureHeaderFill);
+    cell.font = { bold: true, color: { argb: COLORS.lectureText } };
+    cell.note = ["Ma'ruza — baholanmaydi", sessionHeaderNote(s.topic_title, s.note)].filter(Boolean).join('\n');
+  });
+}
 
 const thin = { style: 'thin' as const, color: { argb: COLORS.border } };
 const allBorders = { top: thin, left: thin, bottom: thin, right: thin };
@@ -93,6 +112,7 @@ function addAttendanceSheet(wb: ExcelJS.Workbook, journal: Journal) {
     if (note) header.getCell(firstSession + i).note = note;
   });
   styleHeaderRow(header);
+  markLectureHeaders(header, sessions, firstSession);
 
   students.forEach((st, index) => {
     const rowNo = headerRowNo + 1 + index;
@@ -103,6 +123,7 @@ function addAttendanceSheet(wb: ExcelJS.Workbook, journal: Journal) {
     sessions.forEach((se, i) => {
       const m = marks.get(key(se.id, st.id));
       const cell = row.getCell(firstSession + i);
+      if (isLecture(se)) cell.fill = solidFill(COLORS.lectureFill);
       if (!m) return;
       if (m.present) {
         cell.value = '+';
@@ -175,6 +196,7 @@ function addGradesSheet(wb: ExcelJS.Workbook, journal: Journal) {
     if (note) header.getCell(firstSession + i).note = note;
   });
   styleHeaderRow(header);
+  markLectureHeaders(header, sessions, firstSession);
 
   students.forEach((st, index) => {
     const rowNo = headerRowNo + 1 + index;
@@ -185,6 +207,16 @@ function addGradesSheet(wb: ExcelJS.Workbook, journal: Journal) {
 
     sessions.forEach((se, i) => {
       const m = marks.get(key(se.id, st.id));
+      if (isLecture(se)) {
+        // Ma'ruza baholanmaydi: ball yo'q, faqat NB ko'rinadi (SUM matnni hisoblamaydi)
+        const cell = row.getCell(firstSession + i);
+        cell.fill = solidFill(COLORS.lectureFill);
+        if (m && !m.present) {
+          cell.value = 'NB';
+          cell.font = { bold: true, color: { argb: COLORS.absentText } };
+        }
+        return;
+      }
       // Qo'lda o'zgartirilgan katak — topshiriq bali qo'shilmaydi
       const task = m?.present && m.score_override ? undefined : tasks.get(key(se.id, st.id));
       const manual = m?.present ? m.score : 0;

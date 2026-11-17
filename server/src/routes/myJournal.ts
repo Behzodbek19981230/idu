@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { many, one } from '../db/pool.js';
 import { assertSubjectAccess, requireUser } from '../middleware/auth.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
-import { LOCAL_TZ } from './journal.js';
+import { isLectureSql, LOCAL_TZ } from './journal.js';
 
 export const myJournalRouter = Router(); // /api/my-journal — talabaning o'z davomati va baholari
 
@@ -12,6 +12,7 @@ myJournalRouter.use(requireUser);
  * Talabaning fan bo'yicha jurnali: har bir dars kuni (davomat, darsdagi ball, topshiriq bali, kunlik ball)
  * va yuborgan barcha topshiriqlari. Hisob admin jurnalidagi bilan bir xil:
  * topshiriq bali u yuborilgan kundagi (u kuni dars bo'lmasa — oldingi eng yaqin) darsga qo'shiladi, qo'lda o'zgartirilgan kunda qo'shilmaydi.
+ * Ma'ruza baholanmaydi: ball 0, topshiriq bali ma'ruzaga tushmaydi.
  */
 myJournalRouter.get(
   '/:subjectId',
@@ -29,6 +30,7 @@ myJournalRouter.get(
       lesson_date: string;
       topic_id: number | null;
       topic_title: string | null;
+      lesson_type: string | null;
       present: boolean | null;
       score: number;
       score_override: boolean;
@@ -47,6 +49,7 @@ myJournalRouter.get(
          SELECT sb.score, (
                   SELECT ms.id FROM my_sessions ms
                    WHERE ms.lesson_date <= (sb.submitted_at AT TIME ZONE '${LOCAL_TZ}')::date
+                     AND NOT ${isLectureSql('ms')}
                    ORDER BY ms.lesson_date DESC, (ms.topic_id IS NOT DISTINCT FROM sb.topic_id) DESC, ms.id
                    LIMIT 1) AS session_id
            FROM submissions sb JOIN topics t ON t.id = sb.topic_id
@@ -59,9 +62,11 @@ myJournalRouter.get(
           GROUP BY session_id
        )
        SELECT ms.id AS session_id, to_char(ms.lesson_date, 'YYYY-MM-DD') AS lesson_date,
-              t.id AS topic_id, t.title AS topic_title,
-              a.present, COALESCE(a.score, 0)::float8 AS score,
-              COALESCE(a.present AND a.score_override, FALSE) AS score_override,
+              t.id AS topic_id, t.title AS topic_title, t.lesson_type,
+              a.present,
+              CASE WHEN t.lesson_type = 'lecture' THEN 0 ELSE COALESCE(a.score, 0)::float8 END AS score,
+              COALESCE(a.present AND a.score_override AND t.lesson_type IS DISTINCT FROM 'lecture', FALSE)
+                AS score_override,
               tk.score AS task_score, COALESCE(tk.count, 0) AS task_count
          FROM my_sessions ms
          LEFT JOIN topics t ON t.id = ms.topic_id AND t.deleted_at IS NULL

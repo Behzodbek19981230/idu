@@ -194,9 +194,11 @@ async function seed() {
         studentCount++;
 
         const attendRate = 0.45 + rand() * 0.5; // har talabaning o'z davomat darajasi
-        for (const sessionId of sessionIds) {
+        for (const [i, sessionId] of sessionIds.entries()) {
           const present = rand() < attendRate;
-          const score = present ? 1 + Math.floor(rand() * 5) : 0;
+          // Ma'ruza baholanmaydi — faqat davomat
+          const lecture = TOPICS[i]?.type === 'lecture';
+          const score = present && !lecture ? 1 + Math.floor(rand() * 5) : 0;
           await client.query(
             `INSERT INTO attendance (session_id, student_id, present, score) VALUES ($1,$2,$3,$4)`,
             [sessionId, student.id, present, score],

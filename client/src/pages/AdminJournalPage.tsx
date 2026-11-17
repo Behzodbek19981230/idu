@@ -38,18 +38,28 @@ import {
    ToggleButtonGroup,
    Tooltip,
    Typography,
+   useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { AttendanceCell, formatScore, ScoreCell, type TaskScore } from '../components/JournalCells';
+import {
+   AttendanceCell,
+   formatScore,
+   LectureScoreCell,
+   ScoreCell,
+   type TaskScore,
+} from '../components/JournalCells';
 import type { ExportSheet } from '../utils/journalExport';
-import type {
-   AttendanceMark,
-   ClassSession,
-   ClassSessionInput,
-   Journal,
-   TopicListItem,
+import {
+   lessonTypeColor,
+   lessonTypeLabel,
+   type AttendanceMark,
+   type ClassSession,
+   type ClassSessionInput,
+   type Journal,
+   type TopicListItem,
 } from '../types';
 
 type Sheet = 'davomat' | 'baholar';
@@ -61,6 +71,9 @@ const today = () => new Date().toLocaleDateString('sv-SE');
 
 /** 2026-09-28 → 28.09 */
 const shortDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+
+/** Ma'ruza darsi baholanmaydi — faqat davomat */
+const isLecture = (session: ClassSession) => session.lesson_type === 'lecture';
 
 /** Saqlangan (yoki saqlanayotgan) belgilarni ro'yxatga qo'shadi / almashtiradi */
 function upsertMarks(list: AttendanceMark[], updates: AttendanceMark[]): AttendanceMark[] {
@@ -84,6 +97,14 @@ export default function AdminJournalPage() {
    const [sessionMenu, setSessionMenu] = useState<{ anchor: HTMLElement; session: ClassSession } | null>(null);
    const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
    const [exporting, setExporting] = useState(false);
+
+   // Ma'ruza ustunlari boshqa rangda: kataklar och fon, sarlavha — to'qroq (stickyHeader ostidan
+   // jadval ko'rinmasligi uchun sarlavha foni shaffof emas, ustiga gradient qo'yiladi)
+   const theme = useTheme();
+   const lectureColor = lessonTypeColor('lecture', theme.palette.mode);
+   const lectureTint = alpha(lectureColor, theme.palette.mode === 'dark' ? 0.14 : 0.08);
+   const lectureHeadTint = alpha(lectureColor, theme.palette.mode === 'dark' ? 0.26 : 0.16);
+   const lectureCellSx = { bgcolor: lectureTint } as const;
 
    const setParam = (key: string, value: string) => {
       const next = new URLSearchParams(searchParams);
@@ -138,12 +159,15 @@ export default function AdminJournalPage() {
          const t = { present: 0, absent: 0, score: unassignedTasks.get(st.id)?.score ?? 0 };
          journal.sessions.forEach((se) => {
             const m = marks.get(markKey(se.id, st.id));
-            // Qo'lda o'zgartirilgan katakda topshiriq bali qo'shilmaydi
-            if (!(m?.present && m.score_override)) t.score += taskScores.get(markKey(se.id, st.id))?.score ?? 0;
+            const lecture = isLecture(se);
+            // Qo'lda o'zgartirilgan katakda topshiriq bali qo'shilmaydi; ma'ruzaga ball yo'q
+            if (!lecture && !(m?.present && m.score_override)) {
+               t.score += taskScores.get(markKey(se.id, st.id))?.score ?? 0;
+            }
             if (!m) return;
             if (m.present) {
                t.present += 1;
-               t.score += m.score;
+               if (!lecture) t.score += m.score;
             } else {
                t.absent += 1;
             }
@@ -403,20 +427,46 @@ export default function AdminJournalPage() {
                         <TableHead>
                            <TableRow>
                               <TableCell sx={{ ...stickyNameSx, zIndex: 4 }}>Talaba</TableCell>
-                              {sessions.map((se) => (
-                                 <TableCell key={se.id} align="center" sx={{ px: 0.25, borderLeft: 1, borderColor: 'divider' }}>
-                                    <Tooltip title={se.topic_title || se.note || ''}>
-                                       <Button
-                                          size="small"
-                                          color="inherit"
-                                          sx={{ minWidth: 0, px: 0.75, fontWeight: 600 }}
-                                          onClick={(e) => setSessionMenu({ anchor: e.currentTarget, session: se })}
-                                       >
-                                          {shortDate(se.lesson_date)}
-                                       </Button>
-                                    </Tooltip>
-                                 </TableCell>
-                              ))}
+                              {sessions.map((se) => {
+                                 const lecture = isLecture(se);
+                                 const hint = [
+                                    lecture ? "Ma'ruza — baholanmaydi, faqat davomat" : null,
+                                    se.topic_title || se.note,
+                                 ]
+                                    .filter(Boolean)
+                                    .join(' · ');
+                                 return (
+                                    <TableCell
+                                       key={se.id}
+                                       align="center"
+                                       sx={{
+                                          px: 0.25,
+                                          borderLeft: 1,
+                                          borderColor: 'divider',
+                                          ...(lecture && {
+                                             backgroundImage: `linear-gradient(${lectureHeadTint}, ${lectureHeadTint})`,
+                                             color: lectureColor,
+                                          }),
+                                       }}
+                                    >
+                                       <Tooltip title={hint}>
+                                          <Button
+                                             size="small"
+                                             color="inherit"
+                                             sx={{ minWidth: 0, px: 0.75, fontWeight: 600, flexDirection: 'column', lineHeight: 1.2 }}
+                                             onClick={(e) => setSessionMenu({ anchor: e.currentTarget, session: se })}
+                                          >
+                                             {shortDate(se.lesson_date)}
+                                             {lecture && (
+                                                <Box component="span" sx={{ fontSize: 10, fontWeight: 500, textTransform: 'none' }}>
+                                                   ma'ruza
+                                                </Box>
+                                             )}
+                                          </Button>
+                                       </Tooltip>
+                                    </TableCell>
+                                 );
+                              })}
                               {sheet === 'davomat' ? (
                                  <>
                                     <TableCell align="center" sx={{ borderLeft: 1, borderColor: 'divider' }}>Keldi</TableCell>
@@ -455,8 +505,14 @@ export default function AdminJournalPage() {
 
                                     {sessions.map((se, col) => {
                                        const m = marks.get(markKey(se.id, st.id));
+                                       const lecture = isLecture(se);
                                        return (
-                                          <TableCell key={se.id} className="cell" align="center">
+                                          <TableCell
+                                             key={se.id}
+                                             className="cell"
+                                             align="center"
+                                             sx={lecture ? lectureCellSx : undefined}
+                                          >
                                              {sheet === 'davomat' ? (
                                                 <AttendanceCell
                                                    grid={grid}
@@ -465,6 +521,8 @@ export default function AdminJournalPage() {
                                                    mark={m}
                                                    onToggle={() => toggleAttendance(se.id, st.id)}
                                                 />
+                                             ) : lecture ? (
+                                                <LectureScoreCell grid={grid} row={row} col={col} mark={m} />
                                              ) : (
                                                 <ScoreCell
                                                    grid={grid}
@@ -533,7 +591,11 @@ export default function AdminJournalPage() {
                                  {sessions.map((se) => {
                                     const present = students.filter((st) => marks.get(markKey(se.id, st.id))?.present).length;
                                     return (
-                                       <TableCell key={se.id} align="center" sx={{ borderLeft: 1, borderColor: 'divider' }}>
+                                       <TableCell
+                                          key={se.id}
+                                          align="center"
+                                          sx={{ borderLeft: 1, borderColor: 'divider', ...(isLecture(se) && lectureCellSx) }}
+                                       >
                                           {present}/{students.length}
                                        </TableCell>
                                     );
@@ -554,6 +616,24 @@ export default function AdminJournalPage() {
                      Sana ustiga bosing — darsni tahrirlash yoki o'chirish.
                   </Typography>
                )}
+               {students.length > 0 && sessions.some(isLecture) && (
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+                     <Box
+                        sx={{
+                           width: 14,
+                           height: 14,
+                           borderRadius: 0.5,
+                           bgcolor: lectureHeadTint,
+                           border: 1,
+                           borderColor: alpha(lectureColor, 0.4),
+                        }}
+                     />
+                     <Typography variant="caption" color="text.secondary">
+                        Ma'ruza darslari — faqat davomat belgilanadi, baholanmaydi. Topshiriq ballari ma'ruzaga
+                        emas, undan oldingi eng yaqin amaliy (yoki boshqa) darsga qo'shiladi.
+                     </Typography>
+                  </Stack>
+               )}
             </>
          )}
 
@@ -568,6 +648,12 @@ export default function AdminJournalPage() {
             {sessionMenu?.session.topic_title && (
                <MenuItem disabled sx={{ maxWidth: 320, whiteSpace: 'normal', opacity: '1 !important' }}>
                   <Typography variant="caption" color="text.secondary">
+                     {sessionMenu.session.lesson_type && (
+                        <Box component="span" sx={{ color: lessonTypeColor(sessionMenu.session.lesson_type, theme.palette.mode), fontWeight: 600 }}>
+                           {lessonTypeLabel(sessionMenu.session.lesson_type)}
+                           {isLecture(sessionMenu.session) && ' (baholanmaydi)'} ·{' '}
+                        </Box>
+                     )}
                      {sessionMenu.session.topic_title}
                   </Typography>
                </MenuItem>
@@ -637,6 +723,12 @@ export default function AdminJournalPage() {
                            {topics.map((t, i) => (
                               <MenuItem key={t.id} value={t.id} sx={{ whiteSpace: 'normal' }}>
                                  {i + 1}. {t.title}
+                                 <Box
+                                    component="span"
+                                    sx={{ ml: 1, fontSize: 12, fontWeight: 600, color: lessonTypeColor(t.lesson_type, theme.palette.mode) }}
+                                 >
+                                    {lessonTypeLabel(t.lesson_type)}
+                                 </Box>
                               </MenuItem>
                            ))}
                         </Select>

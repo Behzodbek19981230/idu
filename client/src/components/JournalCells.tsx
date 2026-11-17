@@ -91,6 +91,37 @@ export function AttendanceCell({ mark, onToggle, grid, row, col }: AttendanceCel
   );
 }
 
+interface LectureScoreCellProps extends CellPosition {
+  mark: AttendanceMark | undefined;
+}
+
+/**
+ * Ma'ruza kuni baholar jadvalida: ball qo'yib bo'lmaydi, faqat davomat (NB) ko'rinadi.
+ * Strelkalar bilan yurish uchun fokuslanadi, lekin tahrirlanmaydi.
+ */
+export function LectureScoreCell({ mark, grid, row, col }: LectureScoreCellProps) {
+  const absent = Boolean(mark && !mark.present);
+  return (
+    <Box
+      tabIndex={0}
+      data-grid={grid}
+      data-row={row}
+      data-col={col}
+      title={absent ? "Ma'ruza — kelmagan. Ma'ruza baholanmaydi" : "Ma'ruza — baholanmaydi (faqat davomat)"}
+      onKeyDown={(e) => navigate(e, grid, row, col)}
+      sx={{
+        ...cellBoxSx,
+        cursor: 'not-allowed',
+        fontSize: 12,
+        fontWeight: absent ? 600 : 400,
+        color: absent ? 'error.main' : 'text.disabled',
+      }}
+    >
+      {absent ? 'NB' : '—'}
+    </Box>
+  );
+}
+
 /** Shu kunga tushgan baholangan topshiriqlar yig'indisi (shu kunga avtomatik qo'shiladi) */
 export interface TaskScore {
   score: number;

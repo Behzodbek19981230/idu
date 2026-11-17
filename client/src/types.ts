@@ -156,6 +156,8 @@ export interface ClassSession {
   lesson_date: string;
   topic_id: number | null;
   topic_title?: string | null;
+  /** Mavzuning dars turi (mavzusiz dars — null). Ma'ruza baholanmaydi, faqat davomat */
+  lesson_type?: LessonType | null;
   note: string;
 }
 
@@ -198,6 +200,8 @@ export interface MyJournalDay {
   lesson_date: string;
   topic_id: number | null;
   topic_title: string | null;
+  /** Mavzuning dars turi; ma'ruza kuni ball qo'yilmaydi */
+  lesson_type: LessonType | null;
   /** null — belgilanmagan */
   present: boolean | null;
   /** Darsdagi ball (score_override bo'lsa — kunning yakuniy bali) */

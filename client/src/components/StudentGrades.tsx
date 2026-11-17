@@ -15,18 +15,21 @@ import {
   TableRow,
   Tooltip,
   Typography,
+  useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { api } from '../api/client';
-import { formatDateTime, type MyJournal, type MyJournalDay } from '../types';
+import { formatDateTime, lessonTypeColor, type MyJournal, type MyJournalDay } from '../types';
 import { formatScore } from './JournalCells';
 
 /** 2026-09-28 → 28.09.2026 */
 const fullDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
-/** Kunlik ball — admin jurnalidagi katak bilan bir xil hisob */
+/** Kunlik ball — admin jurnalidagi katak bilan bir xil hisob. Ma'ruza baholanmaydi */
 function dayTotal(d: MyJournalDay) {
+  if (d.lesson_type === 'lecture') return 0;
   if (d.score_override) return d.score;
   return (d.present ? d.score : 0) + (d.task_score ?? 0);
 }
@@ -55,6 +58,8 @@ export default function StudentGrades({ subjectId }: { subjectId: number }) {
   const [data, setData] = useState<MyJournal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const theme = useTheme();
+  const lectureColor = lessonTypeColor('lecture', theme.palette.mode);
 
   useEffect(() => {
     setLoading(true);
@@ -125,7 +130,11 @@ export default function StudentGrades({ subjectId }: { subjectId: number }) {
             </TableHead>
             <TableBody>
               {days.map((d) => (
-                <TableRow key={d.session_id} hover>
+                <TableRow
+                  key={d.session_id}
+                  hover
+                  sx={d.lesson_type === 'lecture' ? { bgcolor: alpha(lectureColor, theme.palette.mode === 'dark' ? 0.14 : 0.06) } : undefined}
+                >
                   <TableCell>{fullDate(d.lesson_date)}</TableCell>
                   <TableCell sx={{ whiteSpace: 'normal !important', minWidth: 180 }}>
                     {d.topic_title ?? <Dash />}
@@ -139,7 +148,19 @@ export default function StudentGrades({ subjectId }: { subjectId: number }) {
                       <Chip size="small" color="error" label="NB" />
                     )}
                   </TableCell>
-                  <TableCell align="center">{d.present ? formatScore(d.score) : <Dash />}</TableCell>
+                  <TableCell align="center">
+                    {d.lesson_type === 'lecture' ? (
+                      <Tooltip title="Ma'ruza darsi baholanmaydi — faqat davomat">
+                        <Typography component="span" variant="caption" sx={{ color: lectureColor, fontWeight: 600 }}>
+                          Ma'ruza
+                        </Typography>
+                      </Tooltip>
+                    ) : d.present ? (
+                      formatScore(d.score)
+                    ) : (
+                      <Dash />
+                    )}
+                  </TableCell>
                   <TableCell align="center">
                     {d.task_score === null ? (
                       <Dash />
@@ -158,9 +179,13 @@ export default function StudentGrades({ subjectId }: { subjectId: number }) {
                     )}
                   </TableCell>
                   <TableCell align="center">
-                    <Typography variant="body2" fontWeight={700} color="primary.main">
-                      {formatScore(dayTotal(d))}
-                    </Typography>
+                    {d.lesson_type === 'lecture' ? (
+                      <Dash />
+                    ) : (
+                      <Typography variant="body2" fontWeight={700} color="primary.main">
+                        {formatScore(dayTotal(d))}
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
