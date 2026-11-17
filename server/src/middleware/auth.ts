@@ -59,7 +59,7 @@ async function resolveUser(payload: AuthPayload): Promise<AuthUser> {
     return { role: 'teacher', ...teacher };
   }
   const student = await one<Omit<Extract<AuthUser, { role: 'student' }>, 'role'>>(
-    'SELECT id, login, first_name, last_name, course FROM students WHERE id = $1',
+    'SELECT id, login, first_name, last_name, course FROM students WHERE id = $1 AND deleted_at IS NULL',
     [payload.id],
   );
   if (!student) throw new HttpError(401, 'Foydalanuvchi topilmadi');
@@ -96,10 +96,10 @@ export const requireStaff = asyncHandler(async (req, _res, next) => {
 /** O'qituvchi faqat o'z fanlari bilan ishlaydi; admin — hammasi bilan */
 export async function assertStaffSubject(user: AuthUser, subjectId: number): Promise<void> {
   if (user.role !== 'teacher') return;
-  const row = await one('SELECT 1 FROM subjects WHERE id = $1 AND teacher_id = $2', [
-    subjectId,
-    user.id,
-  ]);
+  const row = await one(
+    'SELECT 1 FROM subjects WHERE id = $1 AND teacher_id = $2 AND deleted_at IS NULL',
+    [subjectId, user.id],
+  );
   if (!row) throw new HttpError(403, 'Bu fan sizga biriktirilmagan');
 }
 
@@ -108,7 +108,8 @@ export async function assertSubjectAccess(user: AuthUser, subjectId: number): Pr
   if (user.role === 'admin') return;
   if (user.role === 'teacher') return assertStaffSubject(user, subjectId);
   const row = await one(
-    'SELECT 1 FROM subject_courses WHERE subject_id = $1 AND course = $2',
+    `SELECT 1 FROM subject_courses sc JOIN subjects s ON s.id = sc.subject_id
+      WHERE sc.subject_id = $1 AND sc.course = $2 AND s.deleted_at IS NULL`,
     [subjectId, user.course],
   );
   if (!row) throw new HttpError(403, 'Bu fan sizning kursingizga biriktirilmagan');

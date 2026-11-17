@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type pg from 'pg';
-import { many, one, pool, query } from '../db/pool.js';
+import { many, one, pool } from '../db/pool.js';
 import { assertSubjectAccess, courseFilter, requireAdmin, requireUser } from '../middleware/auth.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import type { Subject, Topic } from '../types.js';
@@ -69,10 +69,11 @@ subjectsRouter.get(
          FROM subjects s
          LEFT JOIN (
            SELECT subject_id, COUNT(*) AS topic_count, SUM(hours) AS total_hours
-             FROM topics GROUP BY subject_id
+             FROM topics WHERE deleted_at IS NULL GROUP BY subject_id
          ) t ON t.subject_id = s.id
          ${COURSES_JOIN}
-        WHERE ($1::int IS NULL
+        WHERE s.deleted_at IS NULL
+          AND ($1::int IS NULL
            OR EXISTS (SELECT 1 FROM subject_courses sc WHERE sc.subject_id = s.id AND sc.course = $1))
           AND ($2::int IS NULL OR s.teacher_id = $2)
         ORDER BY s.position, s.name`,
@@ -91,7 +92,7 @@ subjectsRouter.get(
     const subject = await one<Subject>(
       `SELECT s.*, COALESCE(c.courses, '{}'::int[]) AS courses
          FROM subjects s ${COURSES_JOIN}
-        WHERE s.id = $1`,
+        WHERE s.id = $1 AND s.deleted_at IS NULL`,
       [id],
     );
     if (!subject) throw new HttpError(404, 'Fan topilmadi');
@@ -99,7 +100,7 @@ subjectsRouter.get(
 
     const topics = await many<Topic>(
       `SELECT id, subject_id, title, week, position, lesson_type, hours, summary, keywords
-         FROM topics WHERE subject_id = $1 ORDER BY position, id`,
+         FROM topics WHERE subject_id = $1 AND deleted_at IS NULL ORDER BY position, id`,
       [id],
     );
     res.json({ ...subject, topics });
@@ -144,7 +145,7 @@ subjectsRouter.put(
       const { rows } = await client.query<Subject>(
         `UPDATE subjects SET name=$1, code=$2, description=$3, semester=$4, credits=$5,
                 lecture_hours=$6, practice_hours=$7, independent_hours=$8, position=$9
-          WHERE id=$10 RETURNING *`,
+          WHERE id=$10 AND deleted_at IS NULL RETURNING *`,
         [
           data.name,
           data.code,
@@ -166,12 +167,34 @@ subjectsRouter.put(
   }),
 );
 
+/**
+ * Yumshoq o'chirish: fan bazada qoladi, faqat deleted_at qo'yiladi. Unga bog'liq mavzular, darslar
+ * (davomati bilan), havolalar va topshiriqlarga ham xuddi shu vaqt qo'yiladi — UI'da ko'rinmaydi.
+ */
 subjectsRouter.delete(
   '/:id',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const result = await query('DELETE FROM subjects WHERE id = $1', [Number(req.params.id)]);
-    if (result.rowCount === 0) throw new HttpError(404, 'Fan topilmadi');
+    const id = Number(req.params.id);
+    // now() tranzaksiya davomida o'zgarmaydi — hamma yozuvga aynan bir xil vaqt tushadi
+    await withTransaction(async (client) => {
+      const { rowCount } = await client.query(
+        'UPDATE subjects SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL',
+        [id],
+      );
+      if (!rowCount) throw new HttpError(404, 'Fan topilmadi');
+      await client.query(
+        `UPDATE submissions SET deleted_at = now()
+          WHERE deleted_at IS NULL AND topic_id IN (SELECT id FROM topics WHERE subject_id = $1)`,
+        [id],
+      );
+      for (const table of ['topics', 'class_sessions', 'shares']) {
+        await client.query(
+          `UPDATE ${table} SET deleted_at = now() WHERE subject_id = $1 AND deleted_at IS NULL`,
+          [id],
+        );
+      }
+    });
     res.status(204).end();
   }),
 );

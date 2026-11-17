@@ -15,7 +15,9 @@ function newToken(): string {
 
 /** Token bo'yicha faol havolani topadi; muddati/holati tekshiriladi */
 async function loadActiveShare(token: string): Promise<Share> {
-  const share = await one<Share>('SELECT * FROM shares WHERE token = $1', [token]);
+  const share = await one<Share>('SELECT * FROM shares WHERE token = $1 AND deleted_at IS NULL', [
+    token,
+  ]);
   if (!share) throw new HttpError(404, 'Havola topilmadi');
   if (!share.is_active) throw new HttpError(403, "Havola faolsizlantirilgan");
   if (share.expires_at && new Date(share.expires_at).getTime() < Date.now()) {
@@ -51,6 +53,7 @@ sharesRouter.get(
          FROM shares sh
          LEFT JOIN subjects s ON s.id = sh.subject_id
          LEFT JOIN topics   t ON t.id = sh.topic_id
+        WHERE sh.deleted_at IS NULL
         ORDER BY sh.created_at DESC`,
     );
     res.json(rows);
@@ -68,11 +71,13 @@ sharesRouter.post(
     let topicId: number | null = null;
 
     if (data.scope === 'subject') {
-      const subject = await one<Subject>('SELECT id FROM subjects WHERE id = $1', [data.subject_id]);
+      const subject = await one<Subject>('SELECT id FROM subjects WHERE id = $1 AND deleted_at IS NULL', [
+        data.subject_id,
+      ]);
       if (!subject) throw new HttpError(404, 'Fan topilmadi');
       subjectId = subject.id;
     } else {
-      const topic = await one<Topic>('SELECT id, subject_id FROM topics WHERE id = $1', [
+      const topic = await one<Topic>('SELECT id, subject_id FROM topics WHERE id = $1 AND deleted_at IS NULL', [
         data.topic_id,
       ]);
       if (!topic) throw new HttpError(404, 'Mavzu topilmadi');
@@ -83,12 +88,12 @@ sharesRouter.post(
     const existing =
       data.scope === 'subject'
         ? await one<Share>(
-            `SELECT * FROM shares WHERE is_active AND scope = 'subject' AND subject_id = $1
+            `SELECT * FROM shares WHERE is_active AND deleted_at IS NULL AND scope = 'subject' AND subject_id = $1
              ORDER BY id DESC LIMIT 1`,
             [subjectId],
           )
         : await one<Share>(
-            `SELECT * FROM shares WHERE is_active AND scope = 'topic' AND topic_id = $1
+            `SELECT * FROM shares WHERE is_active AND deleted_at IS NULL AND scope = 'topic' AND topic_id = $1
              ORDER BY id DESC LIMIT 1`,
             [topicId],
           );
@@ -124,7 +129,7 @@ sharesRouter.patch(
           SET is_active  = COALESCE($1, is_active),
               note       = COALESCE($2, note),
               expires_at = CASE WHEN $3::text IS NULL THEN expires_at ELSE $4::timestamptz END
-        WHERE id = $5 RETURNING *`,
+        WHERE id = $5 AND deleted_at IS NULL RETURNING *`,
       [
         data.is_active ?? null,
         data.note ?? null,
@@ -142,7 +147,11 @@ sharesRouter.delete(
   '/:id',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const result = await query('DELETE FROM shares WHERE id = $1', [Number(req.params.id)]);
+    // Yumshoq o'chirish: havola bazada qoladi, lekin ro'yxatda ko'rinmaydi va ochilmaydi
+    const result = await query(
+      'UPDATE shares SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL',
+      [Number(req.params.id)],
+    );
     if (result.rowCount === 0) throw new HttpError(404, 'Havola topilmadi');
     res.status(204).end();
   }),
@@ -162,10 +171,13 @@ publicShareRouter.get(
     await query('UPDATE shares SET view_count = view_count + 1 WHERE id = $1', [share.id]);
 
     if (share.scope === 'subject') {
-      const subject = await one<Subject>('SELECT * FROM subjects WHERE id = $1', [share.subject_id]);
+      const subject = await one<Subject>('SELECT * FROM subjects WHERE id = $1 AND deleted_at IS NULL', [
+        share.subject_id,
+      ]);
       if (!subject) throw new HttpError(404, 'Fan topilmadi');
       const topics = await many(
-        `SELECT ${TOPIC_LIST_COLUMNS} FROM topics WHERE subject_id = $1 ORDER BY position, id`,
+        `SELECT ${TOPIC_LIST_COLUMNS} FROM topics WHERE subject_id = $1 AND deleted_at IS NULL
+          ORDER BY position, id`,
         [subject.id],
       );
       res.json({ scope: 'subject', share: { token: share.token, note: share.note }, subject, topics });
@@ -175,7 +187,7 @@ publicShareRouter.get(
     const topic = await one(
       `SELECT t.*, s.name AS subject_name, s.code AS subject_code
          FROM topics t JOIN subjects s ON s.id = t.subject_id
-        WHERE t.id = $1`,
+        WHERE t.id = $1 AND t.deleted_at IS NULL`,
       [share.topic_id],
     );
     if (!topic) throw new HttpError(404, 'Mavzu topilmadi');
@@ -194,7 +206,7 @@ publicShareRouter.get(
     const topic = await one(
       `SELECT t.*, s.name AS subject_name, s.code AS subject_code
          FROM topics t JOIN subjects s ON s.id = t.subject_id
-        WHERE t.id = $1 AND t.subject_id = $2`,
+        WHERE t.id = $1 AND t.subject_id = $2 AND t.deleted_at IS NULL`,
       [Number(req.params.topicId), share.subject_id],
     );
     if (!topic) throw new HttpError(404, 'Mavzu bu havolaga tegishli emas');

@@ -188,3 +188,20 @@ ALTER TABLE class_sessions ADD COLUMN IF NOT EXISTS group_id INTEGER REFERENCES 
 CREATE INDEX IF NOT EXISTS students_group_idx ON students (group_id);
 CREATE INDEX IF NOT EXISTS subjects_teacher_idx ON subjects (teacher_id);
 CREATE INDEX IF NOT EXISTS class_sessions_group_idx ON class_sessions (group_id);
+
+-- Yumshoq o'chirish: yozuvlar bazadan o'chmaydi, faqat deleted_at qo'yiladi va UI'da ko'rinmaydi.
+-- Ota yozuv o'chirilganda (masalan fan) bolalariga ham xuddi shu deleted_at qo'yiladi (mavzular,
+-- darslar, havolalar, topshiriqlar). Qayta tiklash — faqat bazadan:
+--   UPDATE <jadval> SET deleted_at = NULL WHERE deleted_at = '<o''sha vaqt>';
+ALTER TABLE subjects       ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE topics         ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE students       ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE shares         ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE submissions    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE class_sessions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- O'chirilgan talabaning logini / fanning kodi qayta ishlatilishi mumkin: noyoblik faqat faollar orasida
+ALTER TABLE students DROP CONSTRAINT IF EXISTS students_login_key;
+CREATE UNIQUE INDEX IF NOT EXISTS students_login_active_idx ON students (login) WHERE deleted_at IS NULL;
+ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_code_key;
+CREATE UNIQUE INDEX IF NOT EXISTS subjects_code_active_idx ON subjects (code) WHERE deleted_at IS NULL;

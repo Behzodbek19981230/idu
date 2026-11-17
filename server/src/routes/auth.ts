@@ -70,7 +70,8 @@ authRouter.post(
       throw new HttpError(409, 'Bu login band');
     }
     const exists = await one(
-      'SELECT 1 FROM students WHERE login = $1 UNION ALL SELECT 1 FROM teachers WHERE login = $1',
+      `SELECT 1 FROM students WHERE login = $1 AND deleted_at IS NULL
+       UNION ALL SELECT 1 FROM teachers WHERE login = $1`,
       [data.login],
     );
     if (exists) throw new HttpError(409, 'Bu login band');
@@ -118,7 +119,7 @@ authRouter.post(
       return;
     }
 
-    const row = await one<StudentRow>('SELECT * FROM students WHERE login = $1', [
+    const row = await one<StudentRow>('SELECT * FROM students WHERE login = $1 AND deleted_at IS NULL', [
       login.trim().toLowerCase(),
     ]);
     if (!row || !(await bcrypt.compare(password, row.password_hash))) {

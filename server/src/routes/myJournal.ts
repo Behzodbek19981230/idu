@@ -19,7 +19,7 @@ myJournalRouter.get(
     const user = req.user!;
     if (user.role !== 'student') throw new HttpError(403, 'Faqat talaba uchun');
     const subjectId = Number(req.params.subjectId);
-    const subject = await one('SELECT id FROM subjects WHERE id = $1', [subjectId]);
+    const subject = await one('SELECT id FROM subjects WHERE id = $1 AND deleted_at IS NULL', [subjectId]);
     if (!subject) throw new HttpError(404, 'Fan topilmadi');
     await assertSubjectAccess(user, subjectId);
 
@@ -37,7 +37,7 @@ myJournalRouter.get(
     }>(
       `WITH my_sessions AS (
          SELECT cs.* FROM class_sessions cs
-          WHERE cs.subject_id = $1
+          WHERE cs.subject_id = $1 AND cs.deleted_at IS NULL
             AND (cs.group_id IS NULL
                  OR cs.group_id IS NOT DISTINCT FROM (SELECT group_id FROM students WHERE id = $2))
             AND (cs.course = $3 OR EXISTS (
@@ -51,6 +51,7 @@ myJournalRouter.get(
                    LIMIT 1) AS session_id
            FROM submissions sb JOIN topics t ON t.id = sb.topic_id
           WHERE t.subject_id = $1 AND sb.student_id = $2 AND sb.status = 'graded'
+            AND sb.deleted_at IS NULL
        ),
        tasks AS (
          SELECT session_id, SUM(score)::float8 AS score, COUNT(*)::int AS count
@@ -58,12 +59,12 @@ myJournalRouter.get(
           GROUP BY session_id
        )
        SELECT ms.id AS session_id, to_char(ms.lesson_date, 'YYYY-MM-DD') AS lesson_date,
-              ms.topic_id, t.title AS topic_title,
+              t.id AS topic_id, t.title AS topic_title,
               a.present, COALESCE(a.score, 0)::float8 AS score,
               COALESCE(a.present AND a.score_override, FALSE) AS score_override,
               tk.score AS task_score, COALESCE(tk.count, 0) AS task_count
          FROM my_sessions ms
-         LEFT JOIN topics t ON t.id = ms.topic_id
+         LEFT JOIN topics t ON t.id = ms.topic_id AND t.deleted_at IS NULL
          LEFT JOIN attendance a ON a.session_id = ms.id AND a.student_id = $2
          LEFT JOIN tasks tk ON tk.session_id = ms.id
         ORDER BY ms.lesson_date, ms.id`,
@@ -74,7 +75,7 @@ myJournalRouter.get(
       `SELECT sb.id, sb.topic_id, t.title AS topic_title, sb.status, sb.score::float8 AS score,
               sb.feedback, sb.submitted_at, sb.graded_at, sb.file_name, sb.content_kind
          FROM submissions sb JOIN topics t ON t.id = sb.topic_id
-        WHERE t.subject_id = $1 AND sb.student_id = $2
+        WHERE t.subject_id = $1 AND sb.student_id = $2 AND sb.deleted_at IS NULL
         ORDER BY sb.submitted_at DESC`,
       [subjectId, user.id],
     );

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import { z } from 'zod';
-import { many, one, query } from '../db/pool.js';
+import { many, one } from '../db/pool.js';
 import { env } from '../env.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
@@ -18,7 +18,8 @@ studentsRouter.get(
   '/',
   asyncHandler(async (_req, res) => {
     const rows = await many<Student>(
-      `SELECT ${STUDENT_COLUMNS} FROM students ORDER BY course, last_name, first_name`,
+      `SELECT ${STUDENT_COLUMNS} FROM students WHERE deleted_at IS NULL
+        ORDER BY course, last_name, first_name`,
     );
     res.json(rows);
   }),
@@ -38,7 +39,10 @@ studentsRouter.patch(
 
     if (data.login !== undefined) {
       if (data.login === env.adminLogin.toLowerCase()) throw new HttpError(409, 'Bu login band');
-      const taken = await one('SELECT 1 FROM students WHERE login = $1 AND id <> $2', [data.login, id]);
+      const taken = await one(
+        'SELECT 1 FROM students WHERE login = $1 AND id <> $2 AND deleted_at IS NULL',
+        [data.login, id],
+      );
       if (taken) throw new HttpError(409, 'Bu login band');
     }
     const passwordHash = data.password ? await bcrypt.hash(data.password, 10) : null;
@@ -50,7 +54,7 @@ studentsRouter.patch(
               login         = COALESCE($3, login),
               course        = COALESCE($4, course),
               password_hash = COALESCE($5, password_hash)
-        WHERE id = $6 RETURNING ${STUDENT_COLUMNS}`,
+        WHERE id = $6 AND deleted_at IS NULL RETURNING ${STUDENT_COLUMNS}`,
       [
         data.first_name ?? null,
         data.last_name ?? null,
@@ -65,11 +69,26 @@ studentsRouter.patch(
   }),
 );
 
+/**
+ * Yumshoq o'chirish: talaba bazada qoladi (davomati va baholari bilan), faqat deleted_at qo'yiladi.
+ * Uning topshiriqlariga ham xuddi shu vaqt qo'yiladi. Tizimga kira olmaydi, ro'yxat va jurnalda ko'rinmaydi.
+ */
 studentsRouter.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    const result = await query('DELETE FROM students WHERE id = $1', [Number(req.params.id)]);
-    if (result.rowCount === 0) throw new HttpError(404, 'Talaba topilmadi');
+    const id = Number(req.params.id);
+    // Bitta so'rov = bitta tranzaksiya: talaba va topshiriqlariga aynan bir xil now() tushadi
+    const deleted = await one(
+      `WITH st AS (
+         UPDATE students SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id
+       ), sb AS (
+         UPDATE submissions SET deleted_at = now()
+          WHERE student_id = $1 AND deleted_at IS NULL AND EXISTS (SELECT 1 FROM st)
+       )
+       SELECT id FROM st`,
+      [id],
+    );
+    if (!deleted) throw new HttpError(404, 'Talaba topilmadi');
     res.status(204).end();
   }),
 );

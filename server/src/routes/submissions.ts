@@ -59,7 +59,7 @@ submissionsRouter.get(
               t.keywords, t.objectives, t.content, t.assignments, t.resources,
               s.name AS subject_name, s.code AS subject_code
          FROM topics t JOIN subjects s ON s.id = t.subject_id
-        WHERE t.id = $1`,
+        WHERE t.id = $1 AND t.deleted_at IS NULL`,
       [topicId],
     );
     if (!topic) throw new HttpError(404, 'Mavzu topilmadi');
@@ -69,7 +69,7 @@ submissionsRouter.get(
       req.user!.role === 'student'
         ? await many(
             `SELECT ${PUBLIC_COLUMNS} FROM submissions sb
-              WHERE sb.topic_id = $1 AND sb.student_id = $2
+              WHERE sb.topic_id = $1 AND sb.student_id = $2 AND sb.deleted_at IS NULL
               ORDER BY sb.submitted_at DESC`,
             [topicId, req.user!.id],
           )
@@ -85,9 +85,10 @@ submissionsRouter.post(
   // Ruxsat faylni diskka yozishdan OLDIN tekshiriladi
   asyncHandler(async (req, _res, next) => {
     if (req.user!.role !== 'student') throw new HttpError(403, 'Topshiriqni faqat talaba yuboradi');
-    const topic = await one<{ subject_id: number }>('SELECT subject_id FROM topics WHERE id = $1', [
-      Number(req.params.topicId),
-    ]);
+    const topic = await one<{ subject_id: number }>(
+      'SELECT subject_id FROM topics WHERE id = $1 AND deleted_at IS NULL',
+      [Number(req.params.topicId)],
+    );
     if (!topic) throw new HttpError(404, 'Mavzu topilmadi');
     await assertSubjectAccess(req.user!, topic.subject_id);
     next();
@@ -135,7 +136,9 @@ submissionsRouter.get(
   '/:id/file',
   requireUser,
   asyncHandler(async (req, res) => {
-    const row = await one<Submission>('SELECT * FROM submissions WHERE id = $1', [Number(req.params.id)]);
+    const row = await one<Submission>('SELECT * FROM submissions WHERE id = $1 AND deleted_at IS NULL', [
+      Number(req.params.id),
+    ]);
     if (!row || !row.file_path) throw new HttpError(404, 'Fayl topilmadi');
     if (req.user!.role === 'student' && row.student_id !== req.user!.id) {
       throw new HttpError(403, 'Bu fayl sizga tegishli emas');
@@ -164,7 +167,9 @@ submissionsRouter.patch(
       .refine((d) => d.target === 'file' || d.code.length <= 200_000, 'kod juda uzun')
       .parse(req.body);
     const id = Number(req.params.id);
-    const row = await one<Submission>('SELECT * FROM submissions WHERE id = $1', [id]);
+    const row = await one<Submission>('SELECT * FROM submissions WHERE id = $1 AND deleted_at IS NULL', [
+      id,
+    ]);
     if (!row) throw new HttpError(404, 'Topshiriq topilmadi');
     if (req.user!.role === 'student') {
       if (row.student_id !== req.user!.id) throw new HttpError(403, 'Bu topshiriq sizga tegishli emas');
@@ -195,13 +200,13 @@ submissionsRouter.get(
   requireAdmin,
   asyncHandler(async (_req, res) => {
     const count = await one<{ unread: number }>(
-      'SELECT COUNT(*)::int AS unread FROM submissions WHERE seen_at IS NULL',
+      'SELECT COUNT(*)::int AS unread FROM submissions WHERE seen_at IS NULL AND deleted_at IS NULL',
     );
     const items = await many(
       `SELECT sb.id, sb.submitted_at, sb.file_name, st.first_name, st.last_name, st.course,
               t.title AS topic_title, s.code AS subject_code
          FROM submissions sb ${CONTEXT_JOINS}
-        WHERE sb.seen_at IS NULL
+        WHERE sb.seen_at IS NULL AND sb.deleted_at IS NULL
         ORDER BY sb.submitted_at DESC
         LIMIT 15`,
     );
@@ -214,7 +219,7 @@ submissionsRouter.post(
   '/notifications/read-all',
   requireAdmin,
   asyncHandler(async (_req, res) => {
-    await one('UPDATE submissions SET seen_at = now() WHERE seen_at IS NULL');
+    await one('UPDATE submissions SET seen_at = now() WHERE seen_at IS NULL AND deleted_at IS NULL');
     res.json({ ok: true });
   }),
 );
@@ -234,7 +239,8 @@ submissionsRouter.get(
     const rows = await many(
       `SELECT ${WITH_CONTEXT}
          FROM submissions sb ${CONTEXT_JOINS}
-        WHERE ($1::text IS NULL OR sb.status = $1)
+        WHERE sb.deleted_at IS NULL
+          AND ($1::text IS NULL OR sb.status = $1)
           AND ($2::int IS NULL OR s.id = $2)
           AND ($3::int IS NULL OR sb.student_id = $3)
         ORDER BY sb.submitted_at DESC
@@ -251,8 +257,14 @@ submissionsRouter.get(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    await one('UPDATE submissions SET seen_at = now() WHERE id = $1 AND seen_at IS NULL', [id]);
-    const row = await one(`SELECT ${WITH_CONTEXT} FROM submissions sb ${CONTEXT_JOINS} WHERE sb.id = $1`, [id]);
+    await one(
+      'UPDATE submissions SET seen_at = now() WHERE id = $1 AND seen_at IS NULL AND deleted_at IS NULL',
+      [id],
+    );
+    const row = await one(
+      `SELECT ${WITH_CONTEXT} FROM submissions sb ${CONTEXT_JOINS} WHERE sb.id = $1 AND sb.deleted_at IS NULL`,
+      [id],
+    );
     if (!row) throw new HttpError(404, 'Topshiriq topilmadi');
     res.json(row);
   }),
@@ -274,7 +286,7 @@ submissionsRouter.patch(
       `UPDATE submissions
           SET score = $1, feedback = $2, status = 'graded', graded_at = now(),
               seen_at = COALESCE(seen_at, now())
-        WHERE id = $3 RETURNING id`,
+        WHERE id = $3 AND deleted_at IS NULL RETURNING id`,
       [data.score, data.feedback, id],
     );
     if (!updated) throw new HttpError(404, 'Topshiriq topilmadi');

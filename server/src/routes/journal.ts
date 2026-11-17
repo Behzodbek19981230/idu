@@ -19,7 +19,7 @@ export const LOCAL_TZ = 'Asia/Tashkent';
  */
 const SUBMISSION_SESSION_SQL = `(
   SELECT cs.id FROM class_sessions cs
-   WHERE cs.subject_id = $1 AND cs.course = $2
+   WHERE cs.subject_id = $1 AND cs.course = $2 AND cs.deleted_at IS NULL
      AND (cs.group_id IS NULL
           OR cs.group_id IS NOT DISTINCT FROM (SELECT st.group_id FROM students st WHERE st.id = sb.student_id))
      AND cs.lesson_date <= (sb.submitted_at AT TIME ZONE '${LOCAL_TZ}')::date
@@ -64,7 +64,7 @@ const marksSchema = z.object({
 
 async function assertSessionOwner(user: NonNullable<Express.Request['user']>, sessionId: number) {
   const session = await one<{ subject_id: number }>(
-    'SELECT subject_id FROM class_sessions WHERE id = $1',
+    'SELECT subject_id FROM class_sessions WHERE id = $1 AND deleted_at IS NULL',
     [sessionId],
   );
   if (!session) throw new HttpError(404, 'Dars topilmadi');
@@ -72,16 +72,17 @@ async function assertSessionOwner(user: NonNullable<Express.Request['user']>, se
 }
 
 async function assertCourseAttached(subjectId: number, course: number) {
-  const row = await one('SELECT 1 FROM subject_courses WHERE subject_id = $1 AND course = $2', [
-    subjectId,
-    course,
-  ]);
+  const row = await one(
+    `SELECT 1 FROM subject_courses sc JOIN subjects s ON s.id = sc.subject_id
+      WHERE sc.subject_id = $1 AND sc.course = $2 AND s.deleted_at IS NULL`,
+    [subjectId, course],
+  );
   if (!row) throw new HttpError(400, `Fan ${course}-kursga biriktirilmagan`);
 }
 
 async function assertTopicOfSubject(topicId: number | null | undefined, subjectId: number) {
   if (!topicId) return;
-  const row = await one('SELECT 1 FROM topics WHERE id = $1 AND subject_id = $2', [
+  const row = await one('SELECT 1 FROM topics WHERE id = $1 AND subject_id = $2 AND deleted_at IS NULL', [
     topicId,
     subjectId,
   ]);
@@ -101,7 +102,7 @@ journalRouter.get(
       `SELECT s.*, COALESCE(
                 (SELECT array_agg(course ORDER BY course) FROM subject_courses WHERE subject_id = s.id),
                 '{}'::int[]) AS courses
-         FROM subjects s WHERE s.id = $1`,
+         FROM subjects s WHERE s.id = $1 AND s.deleted_at IS NULL`,
       [subjectId],
     );
     if (!subject) throw new HttpError(404, 'Fan topilmadi');
@@ -145,10 +146,10 @@ journalRouter.get(
     // Tanlangan guruhning darslari + butun kursga umumiy (guruhsiz) darslar
     const sessions = await many<ClassSession & { topic_title: string | null }>(
       `SELECT cs.id, cs.subject_id, cs.course, to_char(cs.lesson_date, 'YYYY-MM-DD') AS lesson_date,
-              cs.topic_id, cs.note, cs.group_id, cs.created_at, t.title AS topic_title
+              t.id AS topic_id, cs.note, cs.group_id, cs.created_at, t.title AS topic_title
          FROM class_sessions cs
-         LEFT JOIN topics t ON t.id = cs.topic_id
-        WHERE cs.subject_id = $1 AND cs.course = $2
+         LEFT JOIN topics t ON t.id = cs.topic_id AND t.deleted_at IS NULL
+        WHERE cs.subject_id = $1 AND cs.course = $2 AND cs.deleted_at IS NULL
           AND ($3::int IS NULL OR cs.group_id IS NULL OR cs.group_id = $3)
         ORDER BY cs.lesson_date, cs.id`,
       [subjectId, course, groupId],
@@ -157,19 +158,23 @@ journalRouter.get(
     const students = await many<Omit<Student, 'created_at'>>(
       `SELECT id, first_name, last_name, login, course, group_id
          FROM students st
-        WHERE ($3::int IS NULL OR st.group_id = $3)
+        WHERE st.deleted_at IS NULL
+          AND ($3::int IS NULL OR st.group_id = $3)
           AND (st.course = $2
            OR EXISTS (
              SELECT 1 FROM attendance a JOIN class_sessions cs ON cs.id = a.session_id
-              WHERE a.student_id = st.id AND cs.subject_id = $1 AND cs.course = $2))
+              WHERE a.student_id = st.id AND cs.subject_id = $1 AND cs.course = $2
+                AND cs.deleted_at IS NULL))
         ORDER BY last_name, first_name`,
       [subjectId, course, groupId],
     );
 
     const marks = await many<AttendanceMark>(
       `SELECT a.session_id, a.student_id, a.present, a.score::float8 AS score, a.score_override
-         FROM attendance a JOIN class_sessions cs ON cs.id = a.session_id
-        WHERE cs.subject_id = $1 AND cs.course = $2
+         FROM attendance a
+         JOIN class_sessions cs ON cs.id = a.session_id
+         JOIN students st ON st.id = a.student_id AND st.deleted_at IS NULL
+        WHERE cs.subject_id = $1 AND cs.course = $2 AND cs.deleted_at IS NULL
           AND ($3::int IS NULL OR cs.group_id IS NULL OR cs.group_id = $3)`,
       [subjectId, course, groupId],
     );
@@ -181,7 +186,7 @@ journalRouter.get(
       `SELECT ${SUBMISSION_SESSION_SQL} AS session_id, sb.student_id,
               SUM(sb.score)::float8 AS score, COUNT(*)::int AS count
          FROM submissions sb JOIN topics t ON t.id = sb.topic_id
-        WHERE t.subject_id = $1 AND sb.status = 'graded'
+        WHERE t.subject_id = $1 AND sb.status = 'graded' AND sb.deleted_at IS NULL
         GROUP BY 1, sb.student_id`,
       [subjectId, course],
     );
@@ -230,7 +235,8 @@ journalRouter.post(
       );
       await client.query(
         `INSERT INTO attendance (session_id, student_id)
-         SELECT $1, id FROM students WHERE course = $2 AND ($3::int IS NULL OR group_id = $3)`,
+         SELECT $1, id FROM students
+          WHERE course = $2 AND deleted_at IS NULL AND ($3::int IS NULL OR group_id = $3)`,
         [rows[0].id, data.course, data.group_id ?? null],
       );
       await client.query('COMMIT');
@@ -249,9 +255,10 @@ journalRouter.put(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const data = sessionSchema.parse(req.body);
-    const current = await one<ClassSession>('SELECT subject_id FROM class_sessions WHERE id = $1', [
-      id,
-    ]);
+    const current = await one<ClassSession>(
+      'SELECT subject_id FROM class_sessions WHERE id = $1 AND deleted_at IS NULL',
+      [id],
+    );
     if (!current) throw new HttpError(404, 'Dars topilmadi');
     await assertStaffSubject(req.user!, current.subject_id);
     await assertTopicOfSubject(data.topic_id, current.subject_id);
@@ -265,11 +272,19 @@ journalRouter.put(
   }),
 );
 
+/**
+ * Yumshoq o'chirish: dars va uning davomati/baholari bazada qoladi, faqat deleted_at qo'yiladi.
+ * Jurnal, talaba sahifasi va topshiriq ballari o'chirilgan darsni ko'rmaydi.
+ */
 journalRouter.delete(
   '/sessions/:id',
   asyncHandler(async (req, res) => {
-    await assertSessionOwner(req.user!, Number(req.params.id));
-    const result = await query('DELETE FROM class_sessions WHERE id = $1', [Number(req.params.id)]);
+    const id = Number(req.params.id);
+    await assertSessionOwner(req.user!, id);
+    const result = await query(
+      'UPDATE class_sessions SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL',
+      [id],
+    );
     if (result.rowCount === 0) throw new HttpError(404, 'Dars topilmadi');
     res.status(204).end();
   }),
